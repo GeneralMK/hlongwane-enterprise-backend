@@ -4,16 +4,15 @@ export async function findUserWithAccess(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
     include: {
-      adminProfile: true,
-      userRoles: {
-        where: { isActive: true, revokedAt: null },
+      adminProfile: {
         include: {
-          role: {
-            include: {
-              permissions: { include: { permission: true } }
-            }
+          permissions: {
+            include: { permission: true }
           }
         }
+      },
+      userRoles: {
+        where: { isActive: true, revokedAt: null }
       }
     }
   })
