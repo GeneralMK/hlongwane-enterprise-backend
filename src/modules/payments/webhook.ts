@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
-import type { Context } from 'koa'
 import { PaymentProvider } from '@prisma/client'
+import Router from '@koa/router'
+import type { Context } from 'koa'
 import { processProviderEvent } from './service.js'
 
 export async function paystackWebhookController(ctx: Context) {
@@ -10,7 +11,7 @@ export async function paystackWebhookController(ctx: Context) {
 
   const raw = JSON.stringify(ctx.request.body ?? {})
   const expected = crypto.createHmac('sha512', secret).update(raw).digest('hex')
-  const signatureValid = Boolean(signature) && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  const signatureValid = Boolean(signature) && signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
 
   const payload = ctx.request.body as any
   const reference = payload?.data?.reference as string | undefined
@@ -36,9 +37,5 @@ export async function paystackWebhookController(ctx: Context) {
   ctx.body = { received: true }
 }
 
-export const paymentWebhookRouter = (() => {
-  const Router = require('@koa/router') as typeof import('@koa/router')
-  const router = new Router.default({ prefix: '/webhooks' })
-  router.post('/paystack', paystackWebhookController)
-  return router
-})()
+export const paymentWebhookRouter = new Router({ prefix: '/webhooks' })
+paymentWebhookRouter.post('/paystack', paystackWebhookController)
