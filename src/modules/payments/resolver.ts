@@ -23,8 +23,8 @@ export const paymentResolvers = {
   },
   Mutation: {
     initializePayment: (_: unknown, args: { orderId: string; provider: PaymentProvider }, ctx: AppContext) => {
-      requireUser(ctx.user)
-      return service.initializePayment(args.orderId, args.provider)
+      const user = requireUser(ctx.user)
+      return service.initializePayment(args.orderId, args.provider, user.id, user.isAdmin || user.isSuperAdmin)
     }
   },
   Payment: {
