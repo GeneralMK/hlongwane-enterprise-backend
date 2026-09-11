@@ -1,14 +1,15 @@
 import crypto from 'node:crypto'
-import { PaymentProvider, PaymentStatus } from '@prisma/client'
+import { PaymentProvider, PaymentStatus, Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import * as repo from './repository.js'
 
 export const listPayments = repo.listPayments
 export const getPayment = repo.findPayment
 
-export async function initializePayment(orderId: string, provider: PaymentProvider) {
+export async function initializePayment(orderId: string, provider: PaymentProvider, actorUserId: string, isAdmin = false) {
   const order = await prisma.order.findUnique({ where: { id: orderId } })
   if (!order) throw new Error('Order not found')
+  if (!isAdmin && order.userId !== actorUserId) throw new Error('Order not found')
   if (order.status !== 'PENDING_PAYMENT' && order.status !== 'PAYMENT_FAILED') throw new Error('Order is not payable')
 
   const reference = `PAY-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
@@ -49,7 +50,7 @@ export async function processProviderEvent(params: {
         idempotencyKey: params.idempotencyKey,
         eventType: params.eventType,
         signatureValid: params.signatureValid,
-        payload: params.payload as object,
+        payload: params.payload as Prisma.InputJsonValue,
         processedAt: new Date()
       }
     })
