@@ -32,6 +32,7 @@ export async function processProviderEvent(params: {
   eventType: string
   idempotencyKey: string
   signatureValid: boolean
+  amountMinor?: number
   payload: unknown
   succeeded: boolean
 }) {
@@ -42,6 +43,9 @@ export async function processProviderEvent(params: {
     const payment = await tx.payment.findUnique({ where: { reference: params.reference }, include: { order: true } })
     if (!payment) throw new Error('Payment not found')
     if (payment.provider !== params.provider) throw new Error('Payment provider mismatch')
+
+    const expectedMinor = Math.round(Number(payment.amount.toString()) * 100)
+    const amountMatches = params.amountMinor == null || params.amountMinor === expectedMinor
 
     const event = await tx.paymentEvent.create({
       data: {
@@ -57,8 +61,21 @@ export async function processProviderEvent(params: {
 
     if (!params.signatureValid) return event
 
+    if (!amountMatches) {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.FAILED,
+          failureCode: 'AMOUNT_MISMATCH',
+          failureMessage: `Expected ${expectedMinor} minor units but received ${params.amountMinor}`,
+          verifiedAt: new Date()
+        }
+      })
+      return event
+    }
+
     if (params.succeeded && payment.status !== PaymentStatus.SUCCEEDED) {
-      await tx.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.SUCCEEDED, paidAt: new Date(), verifiedAt: new Date() } })
+      await tx.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.SUCCEEDED, paidAt: new Date(), verifiedAt: new Date(), failureCode: null, failureMessage: null } })
       if (payment.order.status === 'PENDING_PAYMENT' || payment.order.status === 'PAYMENT_FAILED') {
         await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID', paidAt: new Date() } })
         await tx.orderStatusHistory.create({ data: { orderId: payment.orderId, status: 'PAID', note: `Payment verified via ${params.provider}` } })
