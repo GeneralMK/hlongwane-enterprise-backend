@@ -21,7 +21,7 @@ export async function uploadFile(params: {
     data: {
       uploadedByUserId: params.uploadedByUserId,
       purpose: params.purpose,
-      status: UploadStatus.UPLOADING,
+      status: UploadStatus.PENDING,
       bucket: params.bucket,
       path: storagePath,
       originalName: params.originalName,
