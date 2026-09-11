@@ -1,4 +1,6 @@
 import { GraphQLScalarType, Kind } from 'graphql'
+import { adminTypeDefs } from '../modules/admin/schema.js'
+import { adminResolvers } from '../modules/admin/resolver.js'
 import { productTypeDefs } from '../modules/products/schema.js'
 import { productResolvers } from '../modules/products/resolver.js'
 import { inventoryTypeDefs } from '../modules/inventory/schema.js'
@@ -36,7 +38,7 @@ const jsonScalar = new GraphQLScalarType({
   }
 })
 
-export const typeDefs = [baseTypeDefs, productTypeDefs, inventoryTypeDefs, orderTypeDefs, paymentTypeDefs]
+export const typeDefs = [baseTypeDefs, adminTypeDefs, productTypeDefs, inventoryTypeDefs, orderTypeDefs, paymentTypeDefs]
 
 export const resolvers = [
   {
@@ -45,6 +47,7 @@ export const resolvers = [
       health: () => ({ status: 'ok', service: 'hlongwane-enterprise-backend' })
     }
   },
+  adminResolvers,
   productResolvers,
   inventoryResolvers,
   orderResolvers,
