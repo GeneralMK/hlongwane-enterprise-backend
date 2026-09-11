@@ -47,7 +47,7 @@ export async function registerCustomer(input: unknown) {
       return created
     })
 
-    return { user, session: auth.session }
+    return { user: await buildAccessContext(user.id), session: auth.session }
   } catch (databaseError) {
     await supabaseAdmin.auth.admin.deleteUser(auth.user.id).catch(() => undefined)
     throw databaseError
