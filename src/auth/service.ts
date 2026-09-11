@@ -15,22 +15,22 @@ export async function buildAccessContext(userId: string) {
   const user = await findUserWithAccess(userId)
   if (!user || !user.isActive) return null
 
-  const activeRoles = user.userRoles
-    .map((assignment) => assignment.role)
-    .filter((role) => role.isActive)
+  const roleCodes = new Set<string>([
+    user.role,
+    ...user.userRoles.map((assignment) => assignment.role)
+  ])
 
-  const roles = activeRoles.map(({ id, code, name }) => ({ id, code, name }))
+  const roles = Array.from(roleCodes).map((code) => ({
+    id: code,
+    code,
+    name: code.replaceAll('_', ' ')
+  }))
+
   const permissions = Array.from(
     new Set(
-      activeRoles.flatMap((role) =>
-        role.permissions
-          .filter((rp) => rp.permission.isActive)
-          .map((rp) => rp.permission.code)
-      )
+      user.adminProfile?.permissions.map((assignment) => assignment.permission.code) ?? []
     )
   )
-
-  const roleCodes = new Set(roles.map((role) => role.code))
 
   return {
     id: user.id,
