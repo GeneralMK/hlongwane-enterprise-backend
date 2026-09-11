@@ -170,6 +170,8 @@ model User {
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   adminProfile       AdminProfile?
+  userRoles          UserRoleAssignment[] @relation("UserRoleAssignments")
+  rolesAssigned      UserRoleAssignment[] @relation("UserRoleAssignedBy")
   addresses          Address[]
   carts              Cart[]
   orders             Order[]
@@ -186,18 +188,34 @@ model User {
   @@index([isActive])
 }
 
+model UserRoleAssignment {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  role             UserRole
+  assignedByUserId String?  @db.Uuid
+  isActive         Boolean  @default(true)
+  assignedAt       DateTime @default(now())
+  revokedAt        DateTime?
+  user             User     @relation("UserRoleAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy       User?    @relation("UserRoleAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, role])
+  @@index([role, isActive])
+  @@index([assignedByUserId])
+}
+
 model AdminProfile {
-  id          String                   @id @default(uuid()) @db.Uuid
-  userId      String                   @unique @db.Uuid
-  employeeCode String?                 @unique
-  jobTitle    String?
-  department  String?
-  isActive    Boolean                  @default(true)
-  lastLoginAt DateTime?
-  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permissions AdminProfilePermission[]
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  id           String                   @id @default(uuid()) @db.Uuid
+  userId       String                   @unique @db.Uuid
+  employeeCode String?                  @unique
+  jobTitle     String?
+  department   String?
+  isActive     Boolean                  @default(true)
+  lastLoginAt  DateTime?
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions  AdminProfilePermission[]
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
 
   @@index([isActive])
 }
@@ -568,14 +586,14 @@ model Shipment {
 }
 
 model ShipmentEvent {
-  id          String   @id @default(uuid()) @db.Uuid
-  shipmentId  String   @db.Uuid
+  id          String         @id @default(uuid()) @db.Uuid
+  shipmentId  String         @db.Uuid
   status      ShipmentStatus
   description String?
   location    String?
   occurredAt  DateTime
-  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
 
   @@index([shipmentId, occurredAt])
 }
@@ -689,8 +707,8 @@ model ReturnEvidence {
 }
 
 model Notification {
-  id          String             @id @default(uuid()) @db.Uuid
-  userId      String?            @db.Uuid
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String?             @db.Uuid
   channel     NotificationChannel
   status      NotificationStatus @default(PENDING)
   recipient   String
@@ -701,9 +719,9 @@ model Notification {
   sentAt      DateTime?
   failedAt    DateTime?
   error       String?
-  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([userId])
   @@index([status, createdAt])
