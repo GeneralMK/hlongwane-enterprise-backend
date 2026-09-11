@@ -18,7 +18,7 @@ export const authResolvers = {
   Mutation: {
     register: async (_: unknown, args: { input: unknown }) => {
       const result = await registerCustomer(args.input)
-      return { user: null, session: toSession(result.session) }
+      return { user: result.user, session: toSession(result.session) }
     },
     login: async (_: unknown, args: { input: unknown }) => {
       const result = await loginUser(args.input)
