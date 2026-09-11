@@ -11,8 +11,11 @@ import { env } from './config/env.js'
 import { typeDefs, resolvers } from './graphql/schema.js'
 import { prisma } from './lib/prisma.js'
 import { authenticateAccessToken } from './auth/service.js'
+import { authRouter } from './auth/routes.js'
 import type { AppContext } from './types/context.js'
 import { productRouter } from './modules/products/routes.js'
+import { inventoryRouter } from './modules/inventory/routes.js'
+import { orderRouter } from './modules/orders/routes.js'
 import { fileRouter } from './modules/files/routes.js'
 import { paymentRouter } from './modules/payments/routes.js'
 import { paymentWebhookRouter } from './modules/payments/webhook.js'
@@ -69,11 +72,18 @@ async function startServer() {
     await next()
   })
 
+  // Public provider callbacks must remain ahead of protected application routes.
   app.use(paymentWebhookRouter.routes())
   app.use(paymentWebhookRouter.allowedMethods())
 
+  app.use(authRouter.routes())
+  app.use(authRouter.allowedMethods())
   app.use(productRouter.routes())
   app.use(productRouter.allowedMethods())
+  app.use(inventoryRouter.routes())
+  app.use(inventoryRouter.allowedMethods())
+  app.use(orderRouter.routes())
+  app.use(orderRouter.allowedMethods())
   app.use(paymentRouter.routes())
   app.use(paymentRouter.allowedMethods())
   app.use(fileRouter.routes())
@@ -96,7 +106,10 @@ async function startServer() {
   httpServer.listen(env.PORT, () => {
     console.log(`Hlongwane Enterprise API running on http://localhost:${env.PORT}`)
     console.log(`GraphQL endpoint: http://localhost:${env.PORT}/graphql`)
-    console.log(`Product REST endpoint: http://localhost:${env.PORT}/products`)
+    console.log(`Auth REST endpoint: http://localhost:${env.PORT}/auth`)
+    console.log(`Products REST endpoint: http://localhost:${env.PORT}/products`)
+    console.log(`Inventory REST endpoint: http://localhost:${env.PORT}/admin/inventory`)
+    console.log(`Orders REST endpoint: http://localhost:${env.PORT}/orders`)
     console.log(`Paystack webhook: http://localhost:${env.PORT}/webhooks/paystack`)
   })
 
