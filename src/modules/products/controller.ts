@@ -11,6 +11,7 @@ export async function listProductsController(ctx: Context) {
 }
 
 export async function getProductController(ctx: Context) {
-  const product = await service.getProduct({ id: ctx.params.id })
+  const id = String((ctx as Context & { params: { id: string } }).params.id)
+  const product = await service.getProduct({ id })
   ctx.body = { success: true, product }
 }
