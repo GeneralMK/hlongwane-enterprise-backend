@@ -13,7 +13,7 @@ cron.schedule(
         {},
       );
 
-      const result =
+    
       
 
       logger(

@@ -10,12 +10,12 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc"
+            "Value": "Hlongwane/Vpc"
           }
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/Resource"
+        "aws:cdk:path": "Hlongwane/Vpc/Resource"
       }
     },
     "VpcPublicSubnet1Subnet": {
@@ -37,7 +37,7 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc/PublicSubnet1"
+            "Value": "Hlongwane/Vpc/PublicSubnet1"
           },
           {
             "Key": "aws-cdk:subnet-name",
@@ -50,7 +50,7 @@
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet1/Subnet"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet1/Subnet"
       }
     },
     "VpcPublicSubnet1RouteTable": {
@@ -62,12 +62,12 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc/PublicSubnet1"
+            "Value": "Hlongwane/Vpc/PublicSubnet1"
           }
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet1/RouteTable"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet1/RouteTable"
       }
     },
     "VpcPublicSubnet1RouteTableAssociation": {
@@ -81,7 +81,7 @@
         }
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet1/RouteTableAssociation"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet1/RouteTableAssociation"
       }
     },
     "VpcPublicSubnet1DefaultRoute": {
@@ -97,7 +97,7 @@
       },
       "DependsOn": ["VpcVPCGWBF912B6E"],
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet1/DefaultRoute"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet1/DefaultRoute"
       }
     },
     "VpcPublicSubnet2Subnet": {
@@ -119,7 +119,7 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc/PublicSubnet2"
+            "Value": "Hlongwane/Vpc/PublicSubnet2"
           },
           {
             "Key": "aws-cdk:subnet-name",
@@ -132,7 +132,7 @@
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet2/Subnet"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet2/Subnet"
       }
     },
     "VpcPublicSubnet2RouteTable": {
@@ -144,12 +144,12 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc/PublicSubnet2"
+            "Value": "Hlongwane/Vpc/PublicSubnet2"
           }
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet2/RouteTable"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet2/RouteTable"
       }
     },
     "VpcPublicSubnet2RouteTableAssociation": {
@@ -163,7 +163,7 @@
         }
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet2/RouteTableAssociation"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet2/RouteTableAssociation"
       }
     },
     "VpcPublicSubnet2DefaultRoute": {
@@ -179,7 +179,7 @@
       },
       "DependsOn": ["VpcVPCGWBF912B6E"],
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/PublicSubnet2/DefaultRoute"
+        "aws:cdk:path": "Hlongwane/Vpc/PublicSubnet2/DefaultRoute"
       }
     },
     "VpcIGWD7BA715C": {
@@ -188,12 +188,12 @@
         "Tags": [
           {
             "Key": "Name",
-            "Value": "mckenzie/Vpc"
+            "Value": "Hlongwane/Vpc"
           }
         ]
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/IGW"
+        "aws:cdk:path": "Hlongwane/Vpc/IGW"
       }
     },
     "VpcVPCGWBF912B6E": {
@@ -207,7 +207,7 @@
         }
       },
       "Metadata": {
-        "aws:cdk:path": "mckenzie/Vpc/VPCGW"
+        "aws:cdk:path": "Hlongwane/Vpc/VPCGW"
       }
     }
   }
