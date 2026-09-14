@@ -1,35 +1,37 @@
 import { randomInt } from "crypto";
-import prisma from "prisma";
-import { EnumItemCategory } from "@prisma/client";
+import prisma from "../../prisma/index.js";
 
-const PREFIX: Record<EnumItemCategory, string> = {
-  TRACTOR: "TRC",
-  HARVESTER: "HAR",
-  IRRIGATION: "IRR",
-  PLOUGH: "PLG",
-  SEEDER: "SED",
-  SPRAYER: "SPR",
-  TRAILER: "TRL",
-  FERTILIZER: "FER",
-  SEED: "SEE",
-  LIVESTOCK_EQUIPMENT: "LIV",
-  OTHER: "OTH",
-};
+function sanitizePrefix(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 4);
+}
 
-export async function generateSku(category: EnumItemCategory): Promise<string> {
-  const prefix = PREFIX[category];
+export async function generateSku(
+  brandName: string,
+  productName: string,
+): Promise<string> {
+  const brandPrefix =
+    sanitizePrefix(brandName) || "BRD";
+
+  const productPrefix =
+    sanitizePrefix(productName) || "PRD";
+
+  const year =
+    new Date().getFullYear();
 
   while (true) {
-    const sku = `${prefix}-${new Date().getFullYear()}-${randomInt(
-      10000,
-      99999,
-    )}`;
+    const sku =
+      `${brandPrefix}-${productPrefix}-${year}-${randomInt(10000, 99999)}`;
 
-    const exists = await prisma.agricultureItem.findUnique({
-      where: {
-        sku,
-      },
-    });
+    const exists =
+      await prisma.productVariant.findUnique({
+        where: {
+          sku,
+        },
+      });
 
     if (!exists) {
       return sku;

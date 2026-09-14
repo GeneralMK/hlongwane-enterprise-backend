@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import prisma from "prisma";
 import { OrderStatus, PaymentProvider, PaymentStatus, StockMovementType } from "@prisma/client";
-import { badRequest, notFound } from "../../../errors/app-error.js";
+import { badRequest, notFound } from "src/types/app-errors";
+
 
 const stableHash = (body: string) =>
   crypto.createHash("sha256").update(body).digest("hex");

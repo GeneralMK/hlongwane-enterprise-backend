@@ -193,10 +193,10 @@ const ProductResolvers = {
      * Create product.
      *
      * Required permission:
-     * products.create
+     * create:products
      *
      * RBAC action:
-     * create:products
+     * ccreate:products
      */
     createProduct: async (
       _: unknown,
@@ -217,7 +217,7 @@ const ProductResolvers = {
           authenticatedUser.id,
 
         action:
-          "create:products",
+          "ccreate:products",
       });
 
       return service.createProduct(
@@ -229,7 +229,7 @@ const ProductResolvers = {
      * Update product.
      *
      * Required permission:
-     * products.update
+     * update:products
      *
      * RBAC action:
      * update:products
@@ -268,7 +268,7 @@ const ProductResolvers = {
      * Archive product.
      *
      * Required permission:
-     * products.delete
+     * delete:products
      *
      * RBAC action:
      * delete:products

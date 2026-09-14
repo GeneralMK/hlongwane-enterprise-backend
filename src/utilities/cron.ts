@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { logger } from "./logger";
-import { sendOverdueRentalReminders } from "src/api/rentals/service/overdueRentalReminder.service";
+
 
 
 
@@ -14,11 +14,11 @@ cron.schedule(
       );
 
       const result =
-        await sendOverdueRentalReminders();
+      
 
       logger(
         "OVERDUE_RENTAL_CRON_COMPLETED",
-        result,
+        
       );
     } catch (error) {
       logger(

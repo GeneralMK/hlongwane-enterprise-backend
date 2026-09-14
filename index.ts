@@ -5,17 +5,11 @@ import { randomUUID } from "node:crypto";
 
 import { ApolloServer } from "@apollo/server";
 
-import {
-  ApolloServerPluginLandingPageDisabled,
-} from "@apollo/server/plugin/disabled";
+import { ApolloServerPluginLandingPageDisabled } from "@apollo/server/plugin/disabled";
 
-import {
-  ApolloServerPluginDrainHttpServer,
-} from "@apollo/server/plugin/drainHttpServer";
+import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 
-import {
-  koaMiddleware,
-} from "@as-integrations/koa";
+import { koaMiddleware } from "@as-integrations/koa";
 
 import cors from "@koa/cors";
 
@@ -23,9 +17,7 @@ import Router from "@koa/router";
 
 import Koa from "koa";
 
-import {
-  koaBody,
-} from "koa-body";
+import { koaBody } from "koa-body";
 
 /**
  * ============================================================
@@ -87,10 +79,7 @@ import usersRouter from "./src/api/users/routes.js";
  * ============================================================
  */
 
-import {
-  authenticateRequest,
-  getBearerToken,
-} from "./src/middleware/auth.js";
+import { authenticateRequest, getBearerToken } from "./src/middleware/auth.js";
 
 /**
  * ============================================================
@@ -98,9 +87,7 @@ import {
  * ============================================================
  */
 
-import type {
-  Context,
-} from "./src/types/context.js";
+import type { Context } from "./src/types/context.js";
 
 /**
  * ============================================================
@@ -108,9 +95,7 @@ import type {
  * ============================================================
  */
 
-import {
-  logger,
-} from "./src/utilities/index.js";
+import { logger } from "./src/utilities/index.js";
 
 /**
  * ============================================================
@@ -123,18 +108,11 @@ import {
  * file-upload service moves them into Supabase Storage.
  */
 function ensureUploadDirectory(): string {
-  const uploadDirectory =
-    path.resolve(
-      process.cwd(),
-      "uploads",
-    );
+  const uploadDirectory = path.resolve(process.cwd(), "uploads");
 
-  fs.mkdirSync(
-    uploadDirectory,
-    {
-      recursive: true,
-    },
-  );
+  fs.mkdirSync(uploadDirectory, {
+    recursive: true,
+  });
 
   return uploadDirectory;
 }
@@ -142,15 +120,8 @@ function ensureUploadDirectory(): string {
 /**
  * Normalize configured frontend origins.
  */
-function normalizeOrigin(
-  origin: string,
-): string {
-  return origin
-    .trim()
-    .replace(
-      /\/+$/,
-      "",
-    );
+function normalizeOrigin(origin: string): string {
+  return origin.trim().replace(/\/+$/, "");
 }
 
 /**
@@ -160,47 +131,30 @@ function normalizeOrigin(
  */
 
 async function bootstrap(): Promise<void> {
-  const app =
-    new Koa();
+  const app = new Koa();
 
-  const httpServer =
-    http.createServer(
-      app.callback(),
-    );
+  const httpServer = http.createServer(app.callback());
 
-  const healthRouter =
-    new Router();
+  const healthRouter = new Router();
 
-  const graphqlRouter =
-    new Router();
+  const graphqlRouter = new Router();
 
   /**
    * All REST APIs live beneath:
    *
    * /api/v1
    */
-  const apiV1Router =
-    new Router({
-      prefix:
-        "/api/v1",
-    });
+  const apiV1Router = new Router({
+    prefix: "/api/v1",
+  });
 
-  const port =
-    Number(
-      process.env.PORT ??
-        4000,
-    );
+  const port = Number(process.env.PORT ?? 4000);
 
-  const host =
-    process.env.HOST?.trim() ||
-    `http://localhost:${port}`;
+  const host = process.env.HOST?.trim() || `http://localhost:${port}`;
 
-  const isProduction =
-    process.env.NODE_ENV ===
-    "production";
+  const isProduction = process.env.NODE_ENV === "production";
 
-  const uploadDirectory =
-    ensureUploadDirectory();
+  const uploadDirectory = ensureUploadDirectory();
 
   /**
    * ==========================================================
@@ -208,101 +162,67 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    async (
-      context,
-      next,
-    ) => {
-      try {
-        await next();
-      } catch (error: any) {
-        const status =
-          Number(
-            error?.status ??
-              error?.statusCode ??
-              error?.extensions
-                ?.http?.status ??
-              500,
-          );
+  app.use(async (context, next) => {
+    try {
+      await next();
+    } catch (error: any) {
+      const status = Number(
+        error?.status ??
+          error?.statusCode ??
+          error?.extensions?.http?.status ??
+          500,
+      );
 
-        const code =
-          error?.code ??
-          error?.extensions
-            ?.code ??
-          (status === 401
-            ? "UNAUTHENTICATED"
-            : status === 403
-              ? "FORBIDDEN"
-              : status === 404
-                ? "NOT_FOUND"
-                : status >= 500
-                  ? "INTERNAL_SERVER_ERROR"
-                  : "BAD_REQUEST");
+      const code =
+        error?.code ??
+        error?.extensions?.code ??
+        (status === 401
+          ? "UNAUTHENTICATED"
+          : status === 403
+            ? "FORBIDDEN"
+            : status === 404
+              ? "NOT_FOUND"
+              : status >= 500
+                ? "INTERNAL_SERVER_ERROR"
+                : "BAD_REQUEST");
 
-        logger(
-          "HTTP_ERROR",
-          {
-            requestId:
-              context.state
-                .requestId,
+      logger("HTTP_ERROR", {
+        requestId: context.state.requestId,
 
-            method:
-              context.method,
+        method: context.method,
 
-            path:
-              context.path,
+        path: context.path,
 
-            status,
+        status,
 
-            code,
+        code,
 
-            message:
-              error instanceof
-              Error
-                ? error.message
-                : String(
-                    error,
-                  ),
+        message: error instanceof Error ? error.message : String(error),
 
-            stack:
-              status >= 500 &&
-              error instanceof
-                Error
-                ? error.stack
-                : undefined,
-          },
-        );
+        stack:
+          status >= 500 && error instanceof Error ? error.stack : undefined,
+      });
 
-        context.status =
-          status;
+      context.status = status;
 
-        context.body = {
-          success: false,
+      context.body = {
+        success: false,
 
-          error: {
-            code,
+        error: {
+          code,
 
-            message:
-              status >= 500 &&
-              isProduction
-                ? "An unexpected error occurred."
-                : error?.message ??
-                  "Request failed",
+          message:
+            status >= 500 && isProduction
+              ? "An unexpected error occurred."
+              : (error?.message ?? "Request failed"),
 
-            requestId:
-              context.state
-                .requestId,
-          },
-        };
+          requestId: context.state.requestId,
+        },
+      };
 
-        context.app.emit(
-          "error",
-          error,
-          context,
-        );
-      }
-    },
-  );
+      context.app.emit("error", error, context);
+    }
+  });
 
   /**
    * ==========================================================
@@ -310,29 +230,15 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    async (
-      context,
-      next,
-    ) => {
-      const incomingRequestId =
-        context.get(
-          "x-request-id",
-        );
+  app.use(async (context, next) => {
+    const incomingRequestId = context.get("x-request-id");
 
-      context.state.requestId =
-        incomingRequestId ||
-        randomUUID();
+    context.state.requestId = incomingRequestId || randomUUID();
 
-      context.set(
-        "x-request-id",
-        context.state
-          .requestId,
-      );
+    context.set("x-request-id", context.state.requestId);
 
-      await next();
-    },
-  );
+    await next();
+  });
 
   /**
    * ==========================================================
@@ -340,42 +246,19 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.on(
-    "error",
-    (
-      error,
-      context,
-    ) => {
-      logger(
-        "KOA_APPLICATION_ERROR",
-        {
-          requestId:
-            context?.state
-              ?.requestId,
+  app.on("error", (error, context) => {
+    logger("KOA_APPLICATION_ERROR", {
+      requestId: context?.state?.requestId,
 
-          error:
-            error instanceof
-            Error
-              ? error.message
-              : String(
-                  error,
-                ),
+      error: error instanceof Error ? error.message : String(error),
 
-          stack:
-            error instanceof
-            Error
-              ? error.stack
-              : undefined,
+      stack: error instanceof Error ? error.stack : undefined,
 
-          method:
-            context?.method,
+      method: context?.method,
 
-          path:
-            context?.path,
-        },
-      );
-    },
-  );
+      path: context?.path,
+    });
+  });
 
   /**
    * ==========================================================
@@ -383,62 +266,39 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  const configuredOrigins =
-    [
-      process.env
-        .FRONTEND_URL,
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
 
-      process.env
-        .ADMIN_FRONTEND_URL,
+    process.env.ADMIN_FRONTEND_URL,
 
-      process.env
-        .ADDITIONAL_FRONTEND_URL,
-    ]
-      .filter(
-        (
-          value,
-        ): value is string =>
-          typeof value ===
-            "string" &&
-          Boolean(
-            value.trim(),
-          ),
-      )
-      .map(
-        normalizeOrigin,
-      );
+    process.env.ADDITIONAL_FRONTEND_URL,
+  ]
+    .filter(
+      (value): value is string =>
+        typeof value === "string" && Boolean(value.trim()),
+    )
+    .map(normalizeOrigin);
 
-  const developmentOrigins =
-    [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
+  const developmentOrigins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
 
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:3001",
-      "http://127.0.0.1:5173",
-    ];
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:5173",
+  ];
 
-  const allowedOrigins =
-    new Set<string>([
-      ...developmentOrigins,
+  const allowedOrigins = new Set<string>([
+    ...developmentOrigins,
 
-      ...configuredOrigins,
-    ]);
+    ...configuredOrigins,
+  ]);
 
-  function isAllowedOrigin(
-    origin: string,
-  ): boolean {
-    const normalized =
-      normalizeOrigin(
-        origin,
-      );
+  function isAllowedOrigin(origin: string): boolean {
+    const normalized = normalizeOrigin(origin);
 
-    if (
-      allowedOrigins.has(
-        normalized,
-      )
-    ) {
+    if (allowedOrigins.has(normalized)) {
       return true;
     }
 
@@ -447,9 +307,7 @@ async function bootstrap(): Promise<void> {
      */
     if (
       !isProduction &&
-      /^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/i.test(
-        normalized,
-      )
+      /^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/i.test(normalized)
     ) {
       return true;
     }
@@ -459,51 +317,31 @@ async function bootstrap(): Promise<void> {
 
   app.use(
     cors({
-      origin:
-        (
-          context,
-        ) => {
-          const requestOrigin =
-            context.get(
-              "Origin",
-            );
+      origin: (context) => {
+        const requestOrigin = context.get("Origin");
 
-          /**
-           * Non-browser clients such as Postman
-           * may not send Origin.
-           */
-          if (
-            !requestOrigin
-          ) {
-            return "*";
-          }
+        /**
+         * Non-browser clients such as Postman
+         * may not send Origin.
+         */
+        if (!requestOrigin) {
+          return "*";
+        }
 
-          if (
-            isAllowedOrigin(
-              requestOrigin,
-            )
-          ) {
-            return normalizeOrigin(
-              requestOrigin,
-            );
-          }
+        if (isAllowedOrigin(requestOrigin)) {
+          return normalizeOrigin(requestOrigin);
+        }
 
-          logger(
-            "CORS_ORIGIN_BLOCKED",
-            {
-              origin:
-                requestOrigin,
+        logger("CORS_ORIGIN_BLOCKED", {
+          origin: requestOrigin,
 
-              method:
-                context.method,
+          method: context.method,
 
-              path:
-                context.path,
-            },
-          );
+          path: context.path,
+        });
 
-          return "";
-        },
+        return "";
+      },
 
       credentials: true,
 
@@ -539,17 +377,11 @@ async function bootstrap(): Promise<void> {
         "ngrok-skip-browser-warning",
       ],
 
-      exposeHeaders: [
-        "Content-Length",
-        "Content-Type",
-        "X-Request-Id",
-      ],
+      exposeHeaders: ["Content-Length", "Content-Type", "X-Request-Id"],
 
-      keepHeadersOnError:
-        true,
+      keepHeadersOnError: true,
 
-      maxAge:
-        86400,
+      maxAge: 86400,
     }),
   );
 
@@ -566,84 +398,48 @@ async function bootstrap(): Promise<void> {
 
   app.use(
     koaBody({
-      includeUnparsed:
-        true,
+      includeUnparsed: true,
 
-      multipart:
-        true,
+      multipart: true,
 
-      json:
-        true,
+      json: true,
 
-      text:
-        true,
+      text: true,
 
-      urlencoded:
-        true,
+      urlencoded: true,
 
       formidable: {
-        uploadDir:
-          uploadDirectory,
+        uploadDir: uploadDirectory,
 
-        keepExtensions:
-          true,
+        keepExtensions: true,
 
-        multiples:
-          true,
+        multiples: true,
 
         maxFileSize:
-          Number(
-            process.env
-              .MAX_DOCUMENT_UPLOAD_SIZE,
-          ) ||
-          20 *
-            1024 *
-            1024,
+          Number(process.env.MAX_DOCUMENT_UPLOAD_SIZE) || 20 * 1024 * 1024,
 
-        maxFieldsSize:
-          20 *
-          1024 *
-          1024,
+        maxFieldsSize: 20 * 1024 * 1024,
 
-        allowEmptyFiles:
-          false,
+        allowEmptyFiles: false,
 
-        minFileSize:
-          1,
+        minFileSize: 1,
       },
 
-      onError: (
-        error,
-        context,
-      ) => {
-        logger(
-          "KOA_BODY_ERROR",
-          {
-            requestId:
-              context.state
-                .requestId,
+      onError: (error, context) => {
+        logger("KOA_BODY_ERROR", {
+          requestId: context.state.requestId,
 
-            message:
-              error instanceof
-              Error
-                ? error.message
-                : String(
-                    error,
-                  ),
+          message: error instanceof Error ? error.message : String(error),
 
-            method:
-              context.method,
+          method: context.method,
 
-            path:
-              context.path,
-          },
-        );
+          path: context.path,
+        });
 
         context.throw(
           400,
 
-          error instanceof
-            Error
+          error instanceof Error
             ? error.message
             : "Unable to parse request body",
         );
@@ -657,46 +453,27 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    async (
-      context,
-      next,
-    ) => {
-      const startedAt =
-        Date.now();
+  app.use(async (context, next) => {
+    const startedAt = Date.now();
 
-      try {
-        await next();
-      } finally {
-        logger(
-          "HTTP_REQUEST",
-          {
-            requestId:
-              context.state
-                .requestId,
+    try {
+      await next();
+    } finally {
+      logger("HTTP_REQUEST", {
+        requestId: context.state.requestId,
 
-            method:
-              context.method,
+        method: context.method,
 
-            path:
-              context.path,
+        path: context.path,
 
-            status:
-              context.status,
+        status: context.status,
 
-            durationMs:
-              Date.now() -
-              startedAt,
+        durationMs: Date.now() - startedAt,
 
-            userId:
-              context.state
-                .user?.id ??
-              null,
-          },
-        );
-      }
-    },
-  );
+        userId: context.state.user?.id ?? null,
+      });
+    }
+  });
 
   /**
    * ==========================================================
@@ -707,63 +484,38 @@ async function bootstrap(): Promise<void> {
   healthRouter.get(
     "/health",
 
-    async (
-      context,
-    ) => {
+    async (context) => {
       try {
-        await prisma
-          .$queryRaw`SELECT 1`;
+        await prisma.$queryRaw`SELECT 1`;
 
-        context.status =
-          200;
+        context.status = 200;
 
         context.body = {
           success: true,
 
-          service:
-            "hlongwane-enterprise-backend",
+          service: "hlongwane-enterprise-backend",
 
-          database:
-            "connected",
+          database: "connected",
 
-          storage:
-            "supabase",
+          storage: "supabase",
 
-          timestamp:
-            new Date()
-              .toISOString(),
+          timestamp: new Date().toISOString(),
         };
-      } catch (
-        error
-      ) {
-        logger(
-          "HEALTH_CHECK_FAILED",
-          {
-            message:
-              error instanceof
-              Error
-                ? error.message
-                : String(
-                    error,
-                  ),
-          },
-        );
+      } catch (error) {
+        logger("HEALTH_CHECK_FAILED", {
+          message: error instanceof Error ? error.message : String(error),
+        });
 
-        context.status =
-          503;
+        context.status = 503;
 
         context.body = {
           success: false,
 
-          service:
-            "hlongwane-enterprise-backend",
+          service: "hlongwane-enterprise-backend",
 
-          database:
-            "disconnected",
+          database: "disconnected",
 
-          timestamp:
-            new Date()
-              .toISOString(),
+          timestamp: new Date().toISOString(),
         };
       }
     },
@@ -785,92 +537,43 @@ async function bootstrap(): Promise<void> {
    *   /api/v1/brands
    */
 
-  apiV1Router.use(
-    authRouter.routes(),
-    authRouter.allowedMethods(),
-  );
+  apiV1Router.use(authRouter.routes(), authRouter.allowedMethods());
 
-  apiV1Router.use(
-    usersRouter.routes(),
-    usersRouter.allowedMethods(),
-  );
+  apiV1Router.use(usersRouter.routes(), usersRouter.allowedMethods());
 
-  apiV1Router.use(
-    rolesRouter.routes(),
-    rolesRouter.allowedMethods(),
-  );
+  apiV1Router.use(rolesRouter.routes(), rolesRouter.allowedMethods());
 
-  apiV1Router.use(
-    brandsRouter.routes(),
-    brandsRouter.allowedMethods(),
-  );
+  apiV1Router.use(brandsRouter.routes(), brandsRouter.allowedMethods());
 
-  apiV1Router.use(
-    categoriesRouter.routes(),
-    categoriesRouter.allowedMethods(),
-  );
+  apiV1Router.use(categoriesRouter.routes(), categoriesRouter.allowedMethods());
 
-  apiV1Router.use(
-    productsRouter.routes(),
-    productsRouter.allowedMethods(),
-  );
+  apiV1Router.use(productsRouter.routes(), productsRouter.allowedMethods());
 
   apiV1Router.use(
     productVariantsRouter.routes(),
-    productVariantsRouter
-      .allowedMethods(),
+    productVariantsRouter.allowedMethods(),
   );
 
-  apiV1Router.use(
-    inventoryRouter.routes(),
-    inventoryRouter
-      .allowedMethods(),
-  );
+  apiV1Router.use(inventoryRouter.routes(), inventoryRouter.allowedMethods());
 
-  apiV1Router.use(
-    cartsRouter.routes(),
-    cartsRouter.allowedMethods(),
-  );
+  apiV1Router.use(cartsRouter.routes(), cartsRouter.allowedMethods());
 
-  apiV1Router.use(
-    ordersRouter.routes(),
-    ordersRouter.allowedMethods(),
-  );
+  apiV1Router.use(ordersRouter.routes(), ordersRouter.allowedMethods());
 
-  apiV1Router.use(
-    paymentsRouter.routes(),
-    paymentsRouter
-      .allowedMethods(),
-  );
+  apiV1Router.use(paymentsRouter.routes(), paymentsRouter.allowedMethods());
 
-  apiV1Router.use(
-    shipmentsRouter.routes(),
-    shipmentsRouter
-      .allowedMethods(),
-  );
+  apiV1Router.use(shipmentsRouter.routes(), shipmentsRouter.allowedMethods());
 
-  apiV1Router.use(
-    returnsRouter.routes(),
-    returnsRouter
-      .allowedMethods(),
-  );
+  apiV1Router.use(returnsRouter.routes(), returnsRouter.allowedMethods());
 
   apiV1Router.use(
     notificationsRouter.routes(),
-    notificationsRouter
-      .allowedMethods(),
+    notificationsRouter.allowedMethods(),
   );
 
-  apiV1Router.use(
-    fileUploadRouter.routes(),
-    fileUploadRouter
-      .allowedMethods(),
-  );
+  apiV1Router.use(fileUploadRouter.routes(), fileUploadRouter.allowedMethods());
 
-  apiV1Router.use(
-    auditRouter.routes(),
-    auditRouter.allowedMethods(),
-  );
+  apiV1Router.use(auditRouter.routes(), auditRouter.allowedMethods());
 
   /**
    * ==========================================================
@@ -887,134 +590,75 @@ async function bootstrap(): Promise<void> {
    * Prisma RBAC
    */
 
-  const plugins =
-    [
-      ApolloServerPluginDrainHttpServer({
-        httpServer,
-      }),
-    ];
+  const plugins = [
+    ApolloServerPluginDrainHttpServer({
+      httpServer,
+    }),
+  ];
 
-  if (
-    isProduction
-  ) {
-    plugins.push(
-      ApolloServerPluginLandingPageDisabled(),
-    );
+  if (isProduction) {
+    plugins.push(ApolloServerPluginLandingPageDisabled());
   }
 
-  const apolloServer =
-    new ApolloServer<Context>({
-      schema,
+  const apolloServer = new ApolloServer<Context>({
+    schema,
 
-      plugins,
+    plugins,
 
-      introspection:
-        !isProduction ||
-        process.env
-          .GRAPHQL_INTROSPECTION ===
-          "true",
-    });
+    introspection:
+      !isProduction || process.env.GRAPHQL_INTROSPECTION === "true",
+  });
 
   await apolloServer.start();
 
   graphqlRouter.all(
     "/graphql",
 
-    koaMiddleware(
-      apolloServer,
-      {
-        context:
-          async ({
-            ctx,
-          }): Promise<Context> => {
-            /**
-             * authenticateRequest() validates
-             * the Supabase access token and
-             * resolves the Prisma user,
-             * roles and permissions.
-             */
-            const user =
-              await authenticateRequest(
-                ctx,
-              );
+    koaMiddleware(apolloServer, {
+      context: async ({ ctx }): Promise<Context> => {
+        /**
+         * authenticateRequest() validates
+         * the Supabase access token and
+         * resolves the Prisma user,
+         * roles and permissions.
+         */
+        const user = await authenticateRequest(ctx);
 
-            const token =
-              getBearerToken(
-                ctx.headers
-                  .authorization,
-              );
+        const token = getBearerToken(ctx.headers.authorization);
 
-            logger(
-              "GRAPHQL_CONTEXT",
-              {
-                requestId:
-                  ctx.state
-                    .requestId,
+        logger("GRAPHQL_CONTEXT", {
+          requestId: ctx.state.requestId,
 
-                authenticated:
-                  Boolean(
-                    user,
-                  ),
+          authenticated: Boolean(user),
 
-                userId:
-                  user?.id ??
-                  null,
+          userId: user?.id ?? null,
 
-                roles:
-                  user?.roles.map(
-                    (
-                      role,
-                    ) =>
-                      role.code,
-                  ) ?? [],
+          roles: user?.roles.map((role) => role.code) ?? [],
 
-                permissionCount:
-                  user
-                    ?.permissions
-                    .length ??
-                  0,
+          permissionCount: user?.permissions.length ?? 0,
 
-                isAdmin:
-                  user
-                    ?.isAdmin ??
-                  false,
+          isAdmin: user?.isAdmin ?? false,
 
-                isSuperAdmin:
-                  user
-                    ?.isSuperAdmin ??
-                  false,
-              },
-            );
+          isSuperAdmin: user?.isSuperAdmin ?? false,
+        });
 
-            return {
-              prisma,
+        return {
+          prisma,
 
-              user,
+          user,
 
-              token:
-                token ??
-                undefined,
+          token: token ?? undefined,
 
-              requestId:
-                String(
-                  ctx.state
-                    .requestId ??
-                    randomUUID(),
-                ),
+          requestId: String(ctx.state.requestId ?? randomUUID()),
 
-              sessionId:
-                ctx.state
-                  .sessionId,
+          sessionId: ctx.state.sessionId,
 
-              req:
-                ctx.req,
+          req: ctx.req,
 
-              res:
-                ctx.res,
-            };
-          },
+          res: ctx.res,
+        };
       },
-    ),
+    }),
   );
 
   /**
@@ -1023,16 +667,12 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    healthRouter.routes(),
-  );
+  app.use(healthRouter.routes());
 
   app.use(
-    healthRouter
-      .allowedMethods({
-        throw:
-          true,
-      }),
+    healthRouter.allowedMethods({
+      throw: true,
+    }),
   );
 
   /**
@@ -1041,16 +681,12 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    apiV1Router.routes(),
-  );
+  app.use(apiV1Router.routes());
 
   app.use(
-    apiV1Router
-      .allowedMethods({
-        throw:
-          true,
-      }),
+    apiV1Router.allowedMethods({
+      throw: true,
+    }),
   );
 
   /**
@@ -1059,16 +695,12 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    graphqlRouter.routes(),
-  );
+  app.use(graphqlRouter.routes());
 
   app.use(
-    graphqlRouter
-      .allowedMethods({
-        throw:
-          true,
-      }),
+    graphqlRouter.allowedMethods({
+      throw: true,
+    }),
   );
 
   /**
@@ -1077,32 +709,21 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  app.use(
-    async (
-      context,
-    ) => {
-      if (
-        context.status ===
-        404
-      ) {
-        context.body = {
-          success: false,
+  app.use(async (context) => {
+    if (context.status === 404) {
+      context.body = {
+        success: false,
 
-          error: {
-            code:
-              "ROUTE_NOT_FOUND",
+        error: {
+          code: "ROUTE_NOT_FOUND",
 
-            message:
-              `Route ${context.method} ${context.path} was not found.`,
+          message: `Route ${context.method} ${context.path} was not found.`,
 
-            requestId:
-              context.state
-                .requestId,
-          },
-        };
-      }
-    },
-  );
+          requestId: context.state.requestId,
+        },
+      };
+    }
+  });
 
   /**
    * ==========================================================
@@ -1110,15 +731,12 @@ async function bootstrap(): Promise<void> {
    * ==========================================================
    */
 
-  await new Promise<void>(
-    (
-      resolve,
-    ) => {
-      httpServer.listen(
-        port,
+  await new Promise<void>((resolve) => {
+    httpServer.listen(
+      port,
 
-        () => {
-          console.log(`
+      () => {
+        console.log(`
 ============================================================
 
  HLONGWANE ENTERPRISE
@@ -1202,11 +820,10 @@ Hlongwane Enterprise backend is ready.
 ============================================================
 `);
 
-          resolve();
-        },
-      );
-    },
-  );
+        resolve();
+      },
+    );
+  });
 
   /**
    * ==========================================================
@@ -1214,59 +831,29 @@ Hlongwane Enterprise backend is ready.
    * ==========================================================
    */
 
-  const shutdown =
-    async (
-      signal: string,
-    ) => {
-      console.log(
-        `\n${signal} received. Shutting down Hlongwane Enterprise...`,
-      );
+  const shutdown = async (signal: string) => {
+    console.log(`\n${signal} received. Shutting down Hlongwane Enterprise...`);
 
-      try {
-        await apolloServer.stop();
+    try {
+      await apolloServer.stop();
 
-        await prisma.$disconnect();
+      await prisma.$disconnect();
 
-        httpServer.close(
-          () => {
-            console.log(
-              "Hlongwane Enterprise backend stopped.",
-            );
+      httpServer.close(() => {
+        console.log("Hlongwane Enterprise backend stopped.");
 
-            process.exit(
-              0,
-            );
-          },
-        );
-      } catch (
-        error
-      ) {
-        console.error(
-          "Shutdown failed:",
-          error,
-        );
+        process.exit(0);
+      });
+    } catch (error) {
+      console.error("Shutdown failed:", error);
 
-        process.exit(
-          1,
-        );
-      }
-    };
+      process.exit(1);
+    }
+  };
 
-  process.once(
-    "SIGINT",
-    () =>
-      void shutdown(
-        "SIGINT",
-      ),
-  );
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 
-  process.once(
-    "SIGTERM",
-    () =>
-      void shutdown(
-        "SIGTERM",
-      ),
-  );
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 /**
@@ -1275,24 +862,14 @@ Hlongwane Enterprise backend is ready.
  * ============================================================
  */
 
-bootstrap().catch(
-  async (
-    error,
-  ) => {
-    console.error(
-      "Failed to start Hlongwane Enterprise backend:",
-      error,
-    );
+bootstrap().catch(async (error) => {
+  console.error("Failed to start Hlongwane Enterprise backend:", error);
 
-    try {
-      await prisma
-        .$disconnect();
-    } catch {
-      // Ignore disconnect failure during startup failure.
-    }
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // Ignore disconnect failure during startup failure.
+  }
 
-    process.exit(
-      1,
-    );
-  },
-);
+  process.exit(1);
+});

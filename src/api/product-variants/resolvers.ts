@@ -102,10 +102,10 @@ const ProductVariantResolvers = {
      * Create product variant.
      *
      * Required permission:
-     * products.create
+     * create:products
      *
      * RBAC action:
-     * create:products
+     * ccreate:products
      */
     createProductVariant: async (
       _: unknown,
@@ -126,7 +126,7 @@ const ProductVariantResolvers = {
           authenticatedUser.id,
 
         action:
-          "create:products",
+          "ccreate:products",
       });
 
       return service.createVariant(
@@ -138,7 +138,7 @@ const ProductVariantResolvers = {
      * Update product variant.
      *
      * Required permission:
-     * products.update
+     * update:products
      *
      * RBAC action:
      * update:products

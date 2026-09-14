@@ -1,50 +1,125 @@
-import { EnumUserRole } from "@prisma/client";
-
-/**
- * Role constants for common permission checks
- * Use these instead of hardcoded string arrays throughout the application
- */
-
-//  Izwi roles
-export const ADMIN_ROLES: EnumUserRole[] = [
-  EnumUserRole.ADMIN,
-  EnumUserRole.TRUST_SAFETY, // include if Trust & Safety should have admin-like powers
-];
-
-export const STAFF_ROLES: EnumUserRole[] = [
-  EnumUserRole.ADMIN,
-  EnumUserRole.TRUST_SAFETY,
-  EnumUserRole.B2B, // optional (if internal staff)
-];
-
-export const isAdmin = (role?: string | EnumUserRole): boolean => {
-  if (!role) return false;
-  return ADMIN_ROLES.includes(role as EnumUserRole);
+export type RoleLike = {
+  code: string;
 };
 
-export const isTrustSafety = (role?: string | EnumUserRole): boolean => {
-  return role === EnumUserRole.TRUST_SAFETY;
+export type UserWithRoles = {
+  roles?: RoleLike[];
 };
 
 /**
- * Get role hierarchy level (higher number = more permissions)
+ * System role codes.
+ *
+ * These values must match Role.code values stored in the database.
  */
-export const getRoleLevel = (role?: string | EnumUserRole): number => {
-  const roleLevels: Record<EnumUserRole, number> = {
-    [EnumUserRole.REPORTER]: 1,
-    [EnumUserRole.SUBSCRIBER]: 2,
-    [EnumUserRole.B2B]: 3,
-    [EnumUserRole.TRUST_SAFETY]: 9,
-    [EnumUserRole.ADMIN]: 10,
-  };
+export const ROLE_CODES = {
+  SUPER_ADMIN: "SUPER_ADMIN",
+  ADMIN: "ADMIN",
+  CUSTOMER: "CUSTOMER",
+} as const;
 
-  return role ? roleLevels[role as EnumUserRole] ?? 0 : 0;
-};
+export type RoleCode =
+  (typeof ROLE_CODES)[keyof typeof ROLE_CODES];
 
-export const hasRolePermission = (
-  userRole?: string | EnumUserRole,
-  requiredRole?: string | EnumUserRole
-): boolean => getRoleLevel(userRole) >= getRoleLevel(requiredRole);
+/**
+ * Returns true when the user has the supplied role.
+ */
+export function hasRole(
+  user: UserWithRoles | null | undefined,
+  roleCode: string,
+): boolean {
+  if (!user?.roles) {
+    return false;
+  }
 
-// re-export for convenience
-export { EnumUserRole };
+  return user.roles.some(
+    (role) => role.code === roleCode,
+  );
+}
+
+/**
+ * Returns true when the user has at least one
+ * of the supplied roles.
+ */
+export function hasAnyRole(
+  user: UserWithRoles | null | undefined,
+  roleCodes: readonly string[],
+): boolean {
+  if (!user?.roles) {
+    return false;
+  }
+
+  const requiredRoles =
+    new Set(roleCodes);
+
+  return user.roles.some(
+    (role) =>
+      requiredRoles.has(role.code),
+  );
+}
+
+/**
+ * Returns true when the user has every
+ * supplied role.
+ */
+export function hasAllRoles(
+  user: UserWithRoles | null | undefined,
+  roleCodes: readonly string[],
+): boolean {
+  if (!user?.roles) {
+    return false;
+  }
+
+  const assignedRoles =
+    new Set(
+      user.roles.map(
+        (role) => role.code,
+      ),
+    );
+
+  return roleCodes.every(
+    (roleCode) =>
+      assignedRoles.has(roleCode),
+  );
+}
+
+/**
+ * Super admins have unrestricted platform-level
+ * administrative access.
+ */
+export function isSuperAdmin(
+  user: UserWithRoles | null | undefined,
+): boolean {
+  return hasRole(
+    user,
+    ROLE_CODES.SUPER_ADMIN,
+  );
+}
+
+/**
+ * Admin check.
+ *
+ * SUPER_ADMIN is also considered an administrator.
+ */
+export function isAdmin(
+  user: UserWithRoles | null | undefined,
+): boolean {
+  return (
+    isSuperAdmin(user) ||
+    hasRole(
+      user,
+      ROLE_CODES.ADMIN,
+    )
+  );
+}
+
+/**
+ * Customer check.
+ */
+export function isCustomer(
+  user: UserWithRoles | null | undefined,
+): boolean {
+  return hasRole(
+    user,
+    ROLE_CODES.CUSTOMER,
+  );
+}

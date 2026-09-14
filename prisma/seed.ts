@@ -60,17 +60,17 @@ const PERMISSIONS = [
     module: "products",
   },
   {
-    code: "products.create",
+    code: "create:products",
     name: "Create Products",
     module: "products",
   },
   {
-    code: "products.update",
+    code: "update:products",
     name: "Update Products",
     module: "products",
   },
   {
-    code: "products.delete",
+    code: "delete:products",
     name: "Delete Products",
     module: "products",
   },
@@ -217,8 +217,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   ADMIN: [
     "products.read",
-    "products.create",
-    "products.update",
+    "create:products",
+    "update:products",
     "brands.read",
     "brands.manage",
     "categories.read",
@@ -237,9 +237,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
   PRODUCT_MANAGER: [
     "products.read",
-    "products.create",
-    "products.update",
-    "products.delete",
+    "create:products",
+    "update:products",
+    "delete:products",
     "brands.read",
     "brands.manage",
     "categories.read",

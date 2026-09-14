@@ -237,8 +237,8 @@ export async function authenticateAccessToken(
    *
    * Example:
    *
-   * products.create
-   * products.update
+   * create:products
+   * update:products
    * orders.view
    * payments.refund
    */

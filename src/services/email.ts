@@ -2,9 +2,64 @@ import fs from "fs";
 import path from "path";
 
 import nodemailer from "nodemailer";
-import type { Attachment, SentMessageInfo } from "nodemailer/lib/mailer";
 
-import { logger } from "../utilities";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+
+import type {
+  Attachment,
+} from "nodemailer/lib/mailer";
+
+import { logger } from "../utilities/index.js";
+
+/**
+ * ============================================================
+ * TYPES
+ * ============================================================
+ */
+
+export type SentMessageInfo =
+  SMTPTransport.SentMessageInfo;
+
+export type EmailTemplateProps = {
+  greeting?: string;
+  intro: string;
+  body: string;
+  footer?: string;
+};
+
+export type EmailData = {
+  to: string | string[];
+
+  subject: string;
+
+  htmlBody:
+    | EmailTemplateProps
+    | string;
+
+  replyTo?: string;
+
+  attachments?: Attachment[];
+
+  textBody?: string;
+};
+
+export type ContactEmailPayload = {
+  fullName: string;
+
+  email: string;
+
+  phone?: string;
+
+  subject?: string;
+
+  message: string;
+};
+
+/**
+ * ============================================================
+ * ENVIRONMENT
+ * ============================================================
+ */
 
 const {
   SMTP_HOST,
@@ -17,16 +72,41 @@ const {
   MAIL_TO,
 } = process.env;
 
-const SMTP_CONNECTION_TIMEOUT_MS = 10_000;
-const SMTP_GREETING_TIMEOUT_MS = 10_000;
-const SMTP_SOCKET_TIMEOUT_MS = 15_000;
-const SMTP_SEND_TIMEOUT_MS = 20_000;
+/**
+ * ============================================================
+ * SMTP TIMEOUTS
+ * ============================================================
+ */
 
-function getRequiredEnvironmentVariable(name: string, value?: string): string {
-  const normalizedValue = value?.trim();
+const SMTP_CONNECTION_TIMEOUT_MS =
+  10_000;
+
+const SMTP_GREETING_TIMEOUT_MS =
+  10_000;
+
+const SMTP_SOCKET_TIMEOUT_MS =
+  15_000;
+
+const SMTP_SEND_TIMEOUT_MS =
+  20_000;
+
+/**
+ * ============================================================
+ * ENV HELPERS
+ * ============================================================
+ */
+
+function getRequiredEnvironmentVariable(
+  name: string,
+  value?: string,
+): string {
+  const normalizedValue =
+    value?.trim();
 
   if (!normalizedValue) {
-    throw new Error(`${name} is missing`);
+    throw new Error(
+      `${name} is missing`,
+    );
   }
 
   return normalizedValue;
@@ -40,222 +120,546 @@ function parseBoolean(
     return defaultValue;
   }
 
-  const normalizedValue = value.trim().toLowerCase();
+  const normalizedValue =
+    value
+      .trim()
+      .toLowerCase();
 
-  if (["true", "1", "yes", "on"].includes(normalizedValue)) {
+  if (
+    [
+      "true",
+      "1",
+      "yes",
+      "on",
+    ].includes(
+      normalizedValue,
+    )
+  ) {
     return true;
   }
 
-  if (["false", "0", "no", "off"].includes(normalizedValue)) {
+  if (
+    [
+      "false",
+      "0",
+      "no",
+      "off",
+    ].includes(
+      normalizedValue,
+    )
+  ) {
     return false;
   }
 
   return defaultValue;
 }
 
-const smtpHost = getRequiredEnvironmentVariable("SMTP_HOST", SMTP_HOST);
+/**
+ * ============================================================
+ * SMTP CONFIGURATION
+ * ============================================================
+ */
 
-const smtpPort = Number(getRequiredEnvironmentVariable("SMTP_PORT", SMTP_PORT));
+const smtpHost =
+  getRequiredEnvironmentVariable(
+    "SMTP_HOST",
+    SMTP_HOST,
+  );
 
-const smtpUser = getRequiredEnvironmentVariable("SMTP_USER", SMTP_USER);
+const smtpPort =
+  Number(
+    getRequiredEnvironmentVariable(
+      "SMTP_PORT",
+      SMTP_PORT,
+    ),
+  );
 
-const smtpPassword = getRequiredEnvironmentVariable("SMTP_PASS", SMTP_PASS);
+const smtpUser =
+  getRequiredEnvironmentVariable(
+    "SMTP_USER",
+    SMTP_USER,
+  );
 
-if (!Number.isInteger(smtpPort) || smtpPort <= 0 || smtpPort > 65535) {
-  throw new Error("SMTP_PORT must be a valid TCP port");
+const smtpPassword =
+  getRequiredEnvironmentVariable(
+    "SMTP_PASS",
+    SMTP_PASS,
+  );
+
+if (
+  !Number.isInteger(
+    smtpPort,
+  ) ||
+  smtpPort <= 0 ||
+  smtpPort > 65535
+) {
+  throw new Error(
+    "SMTP_PORT must be a valid TCP port",
+  );
 }
 
-const isSecureConnection = smtpPort === 465;
+/**
+ * Port 465:
+ * implicit TLS
+ *
+ * Port 587:
+ * STARTTLS
+ */
+const isSecureConnection =
+  smtpPort === 465;
 
-const shouldRequireTls = smtpPort === 587;
+const shouldRequireTls =
+  smtpPort === 587;
 
-const rejectUnauthorized = parseBoolean(SMTP_REJECT_UNAUTHORIZED, true);
+const rejectUnauthorized =
+  parseBoolean(
+    SMTP_REJECT_UNAUTHORIZED,
+    true,
+  );
 
-export type EmailTemplateProps = {
-  greeting?: string;
-  intro: string;
-  body: string;
-  footer?: string;
-};
+/**
+ * Explicit SMTPTransport.Options typing is important.
+ *
+ * Without this, Nodemailer may resolve createTransport()
+ * against its generic transport overload and TypeScript can
+ * incorrectly report that "host" does not exist.
+ */
+const smtpTransportOptions: SMTPTransport.Options =
+  {
+    host:
+      smtpHost,
 
-export type EmailData = {
-  to: string | string[];
-  subject: string;
-  htmlBody: EmailTemplateProps | string;
-  replyTo?: string;
-  attachments?: Attachment[];
-  textBody?: string;
-};
+    port:
+      smtpPort,
 
-export type ContactEmailPayload = {
-  fullName: string;
+    secure:
+      isSecureConnection,
 
-  email: string;
-  phone?: string;
+    requireTLS:
+      shouldRequireTls,
 
-  subject?: string;
+    auth: {
+      user:
+        smtpUser,
 
-  message: string;
-};
+      pass:
+        smtpPassword,
+    },
 
-const templatePath = path.resolve(process.cwd(), "src/api/email/template.html");
+    tls: {
+      minVersion:
+        "TLSv1.2",
 
-const htmlTemplate = fs.existsSync(templatePath)
-  ? fs.readFileSync(templatePath, "utf8")
-  : null;
+      rejectUnauthorized,
 
-const transporter = nodemailer.createTransport({
-  host: smtpHost,
-  port: smtpPort,
-  secure: isSecureConnection,
-  requireTLS: shouldRequireTls,
+      servername:
+        smtpHost,
+    },
 
-  auth: {
-    user: smtpUser,
-    pass: smtpPassword,
-  },
+    connectionTimeout:
+      SMTP_CONNECTION_TIMEOUT_MS,
 
-  tls: {
-    minVersion: "TLSv1.2",
-    rejectUnauthorized,
-    servername: smtpHost,
-  },
+    greetingTimeout:
+      SMTP_GREETING_TIMEOUT_MS,
 
-  connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    socketTimeout:
+      SMTP_SOCKET_TIMEOUT_MS,
+  };
 
-  greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+/**
+ * Explicit SentMessageInfo typing avoids relying on
+ * nodemailer/lib/mailer exporting SentMessageInfo.
+ */
+const transporter =
+  nodemailer.createTransport<SMTPTransport.SentMessageInfo>(
+    smtpTransportOptions,
+  );
 
-  socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
+/**
+ * ============================================================
+ * EMAIL TEMPLATE
+ * ============================================================
+ */
 
-  pool: false,
-});
+/**
+ * Current project structure:
+ *
+ * src/
+ *   services/
+ *     email.ts
+ *     template.html
+ */
+const templatePath =
+  path.resolve(
+    process.cwd(),
+    "src/services/template.html",
+  );
 
-function normaliseRecipient(value: string): string {
+const htmlTemplate =
+  fs.existsSync(
+    templatePath,
+  )
+    ? fs.readFileSync(
+        templatePath,
+        "utf8",
+      )
+    : null;
+
+/**
+ * ============================================================
+ * RECIPIENT HELPERS
+ * ============================================================
+ */
+
+function normaliseRecipient(
+  value: string,
+): string {
   return value.trim();
 }
 
-function normaliseRecipients(recipients: string | string[]): string | string[] {
-  if (Array.isArray(recipients)) {
-    return recipients.map(normaliseRecipient).filter(Boolean);
+function normaliseRecipients(
+  recipients:
+    | string
+    | string[],
+):
+  | string
+  | string[] {
+  if (
+    Array.isArray(
+      recipients,
+    )
+  ) {
+    return recipients
+      .map(
+        normaliseRecipient,
+      )
+      .filter(
+        Boolean,
+      );
   }
 
-  return normaliseRecipient(recipients);
+  return normaliseRecipient(
+    recipients,
+  );
 }
 
-function validateRecipients(recipients: string | string[]): void {
-  if (Array.isArray(recipients)) {
-    if (recipients.length === 0) {
-      throw new Error("At least one email recipient is required");
+function validateRecipients(
+  recipients:
+    | string
+    | string[],
+): void {
+  if (
+    Array.isArray(
+      recipients,
+    )
+  ) {
+    if (
+      recipients.length ===
+      0
+    ) {
+      throw new Error(
+        "At least one email recipient is required",
+      );
     }
 
     return;
   }
 
   if (!recipients) {
-    throw new Error("An email recipient is required");
+    throw new Error(
+      "An email recipient is required",
+    );
   }
 }
 
-function getErrorDetails(error: unknown): {
+/**
+ * ============================================================
+ * ERROR HELPERS
+ * ============================================================
+ */
+
+function getErrorDetails(
+  error: unknown,
+): {
   message: string;
+
   name?: string;
+
   code?: string;
+
   command?: string;
+
   response?: string;
+
   responseCode?: number;
+
   stack?: string;
 } {
-  if (!(error instanceof Error)) {
+  if (
+    !(
+      error instanceof
+      Error
+    )
+  ) {
     return {
-      message: String(error),
+      message:
+        String(
+          error,
+        ),
     };
   }
 
-  const smtpError = error as Error & {
-    code?: string;
-    command?: string;
-    response?: string;
-    responseCode?: number;
-  };
+  const smtpError =
+    error as Error & {
+      code?: string;
+
+      command?: string;
+
+      response?: string;
+
+      responseCode?: number;
+    };
 
   return {
-    name: smtpError.name,
-    message: smtpError.message,
-    code: smtpError.code,
-    command: smtpError.command,
-    response: smtpError.response,
-    responseCode: smtpError.responseCode,
-    stack: smtpError.stack,
+    name:
+      smtpError.name,
+
+    message:
+      smtpError.message,
+
+    code:
+      smtpError.code,
+
+    command:
+      smtpError.command,
+
+    response:
+      smtpError.response,
+
+    responseCode:
+      smtpError.responseCode,
+
+    stack:
+      smtpError.stack,
   };
 }
+
+/**
+ * ============================================================
+ * TIMEOUT
+ * ============================================================
+ */
 
 function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   timeoutMessage: string,
 ): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
+  return new Promise<T>(
+    (
+      resolve,
+      reject,
+    ) => {
+      const timeout =
+        setTimeout(
+          () => {
+            reject(
+              new Error(
+                timeoutMessage,
+              ),
+            );
+          },
+          timeoutMs,
+        );
 
-    timeout.unref?.();
+      timeout.unref?.();
 
-    promise
-      .then((result) => {
-        clearTimeout(timeout);
-        resolve(result);
-      })
-      .catch((error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-  });
+      promise
+        .then(
+          (
+            result,
+          ) => {
+            clearTimeout(
+              timeout,
+            );
+
+            resolve(
+              result,
+            );
+          },
+        )
+        .catch(
+          (
+            error,
+          ) => {
+            clearTimeout(
+              timeout,
+            );
+
+            reject(
+              error,
+            );
+          },
+        );
+    },
+  );
 }
 
-export function escapeHtml(value: string): string {
+/**
+ * ============================================================
+ * HTML HELPERS
+ * ============================================================
+ */
+
+export function escapeHtml(
+  value: string,
+): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(
+      /&/g,
+      "&amp;",
+    )
+    .replace(
+      /</g,
+      "&lt;",
+    )
+    .replace(
+      />/g,
+      "&gt;",
+    )
+    .replace(
+      /"/g,
+      "&quot;",
+    )
+    .replace(
+      /'/g,
+      "&#039;",
+    );
 }
 
-function renderStoredTemplate(data: EmailTemplateProps): string | null {
-  if (!htmlTemplate) {
+/**
+ * ============================================================
+ * STORED TEMPLATE
+ * ============================================================
+ */
+
+function renderStoredTemplate(
+  data: EmailTemplateProps,
+): string | null {
+  if (
+    !htmlTemplate
+  ) {
     return null;
   }
 
-  const values: Record<string, string> = {
-    greeting: data.greeting?.trim() ?? "",
-    intro: data.intro.trim(),
-    body: data.body,
-    footer: data.footer?.trim() ?? "",
+  const values: Record<
+    string,
+    string
+  > = {
+    greeting:
+      data.greeting?.trim() ??
+      "",
+
+    intro:
+      data.intro.trim(),
+
+    body:
+      data.body,
+
+    footer:
+      data.footer?.trim() ??
+      "",
   };
 
-  return htmlTemplate.replace(/\${(\w+)}/g, (_match, key: string) => {
-    if (Object.prototype.hasOwnProperty.call(values, key)) {
-      return values[key] ?? "";
-    }
+  return htmlTemplate.replace(
+    /\${(\w+)}/g,
+    (
+      _match,
+      key: string,
+    ) => {
+      if (
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            values,
+            key,
+          )
+      ) {
+        return (
+          values[key] ??
+          ""
+        );
+      }
 
-    logger("EMAIL_TEMPLATE_KEY_NOT_FOUND", {
-      key,
-    });
+      logger(
+        "EMAIL_TEMPLATE_KEY_NOT_FOUND",
+        {
+          key,
+        },
+      );
 
-    return "";
-  });
+      return "";
+    },
+  );
 }
 
-function renderTemplate(data: EmailTemplateProps): string {
-  return renderStoredTemplate(data) ?? generateHtmlFromTemplate(data);
+/**
+ * ============================================================
+ * TEMPLATE RENDERER
+ * ============================================================
+ */
+
+function renderTemplate(
+  data: EmailTemplateProps,
+): string {
+  return (
+    renderStoredTemplate(
+      data,
+    ) ??
+    generateHtmlFromTemplate(
+      data,
+    )
+  );
 }
 
-export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
-  const { greeting, intro, body, footer } = props;
+/**
+ * ============================================================
+ * FALLBACK HTML TEMPLATE
+ * ============================================================
+ */
+
+export function generateHtmlFromTemplate(
+  props: EmailTemplateProps,
+): string {
+  const {
+    greeting,
+    intro,
+    body,
+    footer,
+  } = props;
+
+  const safeGreeting =
+    greeting
+      ? escapeHtml(
+          greeting,
+        )
+      : "";
+
+  const safeIntro =
+    escapeHtml(
+      intro,
+    );
+
+  const safeFooter =
+    footer
+      ? escapeHtml(
+          footer,
+        )
+      : "";
 
   return `
     <!doctype html>
+
     <html lang="en">
       <head>
         <meta charset="utf-8" />
@@ -266,7 +670,7 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
         />
 
         <title>
-          ${escapeHtml(intro)}
+          ${safeIntro || "Hlongwane Enterprise"}
         </title>
       </head>
 
@@ -326,8 +730,7 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
                         font-weight: 700;
                       "
                     >
-                      McKenzie Farming
-                      Solutions
+                      Hlongwane Enterprise
                     </div>
                   </td>
                 </tr>
@@ -339,7 +742,7 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
                     "
                   >
                     ${
-                      greeting
+                      safeGreeting
                         ? `
                           <p
                             style="
@@ -347,22 +750,28 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
                               font-size: 15px;
                             "
                           >
-                            ${escapeHtml(greeting)}
+                            ${safeGreeting}
                           </p>
                         `
                         : ""
                     }
 
-                    <h2
-                      style="
-                        margin: 0 0 20px;
-                        color: #173f1f;
-                        font-size: 24px;
-                        line-height: 1.3;
-                      "
-                    >
-                      ${escapeHtml(intro)}
-                    </h2>
+                    ${
+                      safeIntro
+                        ? `
+                          <h2
+                            style="
+                              margin: 0 0 20px;
+                              color: #173f1f;
+                              font-size: 24px;
+                              line-height: 1.3;
+                            "
+                          >
+                            ${safeIntro}
+                          </h2>
+                        `
+                        : ""
+                    }
 
                     <div
                       style="
@@ -375,7 +784,7 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
                     </div>
 
                     ${
-                      footer
+                      safeFooter
                         ? `
                           <p
                             style="
@@ -387,7 +796,7 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
                               line-height: 1.6;
                             "
                           >
-                            ${escapeHtml(footer)}
+                            ${safeFooter}
                           </p>
                         `
                         : ""
@@ -403,16 +812,35 @@ export function generateHtmlFromTemplate(props: EmailTemplateProps): string {
   `;
 }
 
+/**
+ * ============================================================
+ * SMTP CONNECTION VERIFICATION
+ * ============================================================
+ */
+
 export async function verifyEmailConnection(): Promise<boolean> {
   try {
-    logger("SMTP_CONNECTION_VERIFY_INIT", {
-      host: smtpHost,
-      port: smtpPort,
-      user: smtpUser,
-      secure: isSecureConnection,
-      requireTLS: shouldRequireTls,
-      rejectUnauthorized,
-    });
+    logger(
+      "SMTP_CONNECTION_VERIFY_INIT",
+      {
+        host:
+          smtpHost,
+
+        port:
+          smtpPort,
+
+        user:
+          smtpUser,
+
+        secure:
+          isSecureConnection,
+
+        requireTLS:
+          shouldRequireTls,
+
+        rejectUnauthorized,
+      },
+    );
 
     await withTimeout(
       transporter.verify(),
@@ -420,109 +848,274 @@ export async function verifyEmailConnection(): Promise<boolean> {
       `SMTP verification timed out after ${SMTP_SEND_TIMEOUT_MS}ms`,
     );
 
-    logger("SMTP_CONNECTION_SUCCESS", {
-      host: smtpHost,
-      port: smtpPort,
-      user: smtpUser,
-      secure: isSecureConnection,
-      requireTLS: shouldRequireTls,
-    });
+    logger(
+      "SMTP_CONNECTION_SUCCESS",
+      {
+        host:
+          smtpHost,
+
+        port:
+          smtpPort,
+
+        user:
+          smtpUser,
+
+        secure:
+          isSecureConnection,
+
+        requireTLS:
+          shouldRequireTls,
+      },
+    );
 
     return true;
-  } catch (error) {
-    logger("SMTP_CONNECTION_ERROR", getErrorDetails(error));
+  } catch (
+    error
+  ) {
+    logger(
+      "SMTP_CONNECTION_ERROR",
+      getErrorDetails(
+        error,
+      ),
+    );
 
     throw error;
   }
 }
 
-export async function sendEmail(data: EmailData): Promise<SentMessageInfo> {
-  const { to, subject, htmlBody, replyTo, attachments, textBody } = data;
+/**
+ * ============================================================
+ * SEND EMAIL
+ * ============================================================
+ */
 
-  const recipients = normaliseRecipients(to);
+export async function sendEmail(
+  data: EmailData,
+): Promise<SentMessageInfo> {
+  const {
+    to,
+    subject,
+    htmlBody,
+    replyTo,
+    attachments,
+    textBody,
+  } = data;
 
-  validateRecipients(recipients);
+  const recipients =
+    normaliseRecipients(
+      to,
+    );
 
-  const normalizedSubject = subject.trim();
+  validateRecipients(
+    recipients,
+  );
 
-  if (!normalizedSubject) {
-    throw new Error("Email subject is required");
+  const normalizedSubject =
+    subject.trim();
+
+  if (
+    !normalizedSubject
+  ) {
+    throw new Error(
+      "Email subject is required",
+    );
   }
 
   const html =
-    typeof htmlBody === "string" ? htmlBody : renderTemplate(htmlBody);
+    typeof htmlBody ===
+    "string"
+      ? htmlBody
+      : renderTemplate(
+          htmlBody,
+        );
 
   const fromAddress =
-    SMTP_FROM?.trim() || `"McKenzie Farming Solutions" <${smtpUser}>`;
+    SMTP_FROM?.trim() ||
+    `"Hlongwane Enterprise" <${smtpUser}>`;
 
-  const replyToAddress = replyTo?.trim() || SMTP_REPLY_TO?.trim() || undefined;
+  const replyToAddress =
+    replyTo?.trim() ||
+    SMTP_REPLY_TO?.trim() ||
+    undefined;
 
-  logger("SEND_EMAIL_INIT", {
-    to: recipients,
-    subject: normalizedSubject,
-    from: fromAddress,
-    replyTo: replyToAddress,
-    attachmentCount: attachments?.length ?? 0,
-    host: smtpHost,
-    port: smtpPort,
-    secure: isSecureConnection,
-    requireTLS: shouldRequireTls,
-  });
+  logger(
+    "SEND_EMAIL_INIT",
+    {
+      to:
+        recipients,
+
+      subject:
+        normalizedSubject,
+
+      from:
+        fromAddress,
+
+      replyTo:
+        replyToAddress,
+
+      attachmentCount:
+        attachments?.length ??
+        0,
+
+      host:
+        smtpHost,
+
+      port:
+        smtpPort,
+
+      secure:
+        isSecureConnection,
+
+      requireTLS:
+        shouldRequireTls,
+    },
+  );
 
   try {
-    const sendPromise = transporter.sendMail({
-      from: fromAddress,
-      to: recipients,
-      replyTo: replyToAddress,
-      subject: normalizedSubject,
-      text: textBody?.trim() || undefined,
-      html,
-      attachments,
-    });
+    const sendPromise =
+      transporter.sendMail({
+        from:
+          fromAddress,
 
-    const info = await withTimeout(
-      sendPromise,
-      SMTP_SEND_TIMEOUT_MS,
-      `SMTP server did not respond within ${SMTP_SEND_TIMEOUT_MS}ms`,
+        to:
+          recipients,
+
+        replyTo:
+          replyToAddress,
+
+        subject:
+          normalizedSubject,
+
+        text:
+          textBody?.trim() ||
+          undefined,
+
+        html,
+
+        attachments,
+      });
+
+    const info =
+      await withTimeout(
+        sendPromise,
+        SMTP_SEND_TIMEOUT_MS,
+        `SMTP server did not respond within ${SMTP_SEND_TIMEOUT_MS}ms`,
+      );
+
+    logger(
+      "SEND_EMAIL_SUCCESS",
+      {
+        messageId:
+          info.messageId,
+
+        accepted:
+          info.accepted,
+
+        rejected:
+          info.rejected,
+
+        response:
+          info.response,
+      },
     );
 
-    logger("SEND_EMAIL_SUCCESS", {
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-
-      response: info.response,
-    });
-
     return info;
-  } catch (error) {
-    logger("SEND_EMAIL_ERROR", {
-      to: recipients,
-      subject: normalizedSubject,
-      ...getErrorDetails(error),
-    });
+  } catch (
+    error
+  ) {
+    logger(
+      "SEND_EMAIL_ERROR",
+      {
+        to:
+          recipients,
+
+        subject:
+          normalizedSubject,
+
+        ...getErrorDetails(
+          error,
+        ),
+      },
+    );
 
     throw error;
   }
 }
+
+/**
+ * ============================================================
+ * CONTACT EMAIL
+ * ============================================================
+ */
 
 export async function sendContactEmail(
   data: ContactEmailPayload,
 ): Promise<SentMessageInfo> {
-  const safeName = escapeHtml(data.fullName.trim());
+  const fullName =
+    data.fullName.trim();
 
-  const safeEmail = escapeHtml(data.email.trim());
+  const email =
+    data.email.trim();
 
-  const safePhone = escapeHtml(data.phone?.trim() || "Not provided");
+  const message =
+    data.message.trim();
 
-  const enquirySubject = data.subject?.trim() || "General enquiry";
+  if (
+    !fullName
+  ) {
+    throw new Error(
+      "Full name is required",
+    );
+  }
 
-  const safeSubject = escapeHtml(enquirySubject);
+  if (
+    !email
+  ) {
+    throw new Error(
+      "Email address is required",
+    );
+  }
 
-  const safeMessage = escapeHtml(data.message.trim()).replace(
-    /\r?\n/g,
-    "<br />",
-  );
+  if (
+    !message
+  ) {
+    throw new Error(
+      "Message is required",
+    );
+  }
+
+  const safeName =
+    escapeHtml(
+      fullName,
+    );
+
+  const safeEmail =
+    escapeHtml(
+      email,
+    );
+
+  const safePhone =
+    escapeHtml(
+      data.phone?.trim() ||
+      "Not provided",
+    );
+
+  const enquirySubject =
+    data.subject?.trim() ||
+    "General enquiry";
+
+  const safeSubject =
+    escapeHtml(
+      enquirySubject,
+    );
+
+  const safeMessage =
+    escapeHtml(
+      message,
+    ).replace(
+      /\r?\n/g,
+      "<br />",
+    );
 
   const body = `
     <table
@@ -537,9 +1130,10 @@ export async function sendContactEmail(
         margin-bottom: 22px;
       "
     >
-      ${renderContactRow("FullName", safeName)}
-
-     
+      ${renderContactRow(
+        "Full name",
+        safeName,
+      )}
 
       ${renderContactRow(
         "Email",
@@ -555,11 +1149,15 @@ export async function sendContactEmail(
         `,
       )}
 
-      ${renderContactRow("Phone", safePhone)}
+      ${renderContactRow(
+        "Phone",
+        safePhone,
+      )}
 
-      ${renderContactRow("Subject", safeSubject)}
-
-     
+      ${renderContactRow(
+        "Subject",
+        safeSubject,
+      )}
     </table>
 
     <div
@@ -591,27 +1189,45 @@ export async function sendContactEmail(
     </div>
   `;
 
+  const recipient =
+    MAIL_TO?.trim() ||
+    smtpUser;
+
   return sendEmail({
-    to: MAIL_TO?.trim() || "info@mckenziefarming.co.za",
+    to:
+      recipient,
 
-    replyTo: data.email.trim(),
+    replyTo:
+      email,
 
-    subject: `McKenzie Contact Request - ${data.fullName.trim()}`,
+    subject:
+      `Hlongwane Enterprise Contact Request - ${fullName}`,
 
     htmlBody: {
-      greeting: "",
+      greeting:
+        "",
 
-      intro: "",
+      intro:
+        "New contact request",
 
       body,
 
       footer:
-        "This message was generated from the McKenzie Farming Solutions website contact form.",
+        "This message was generated from the Hlongwane Enterprise website contact form.",
     },
   });
 }
 
-function renderContactRow(label: string, value: string): string {
+/**
+ * ============================================================
+ * CONTACT TABLE ROW
+ * ============================================================
+ */
+
+function renderContactRow(
+  label: string,
+  value: string,
+): string {
   return `
     <tr>
       <td
@@ -624,7 +1240,9 @@ function renderContactRow(label: string, value: string): string {
           vertical-align: top;
         "
       >
-        ${escapeHtml(label)}
+        ${escapeHtml(
+          label,
+        )}
       </td>
 
       <td
