@@ -1,0 +1,2 @@
+import prisma from "prisma"; import type {Prisma} from "@prisma/client";
+export const list=(p:{actorUserId?:string;entityType?:string;action?:string;skip:number;take:number})=>{const where:Prisma.AuditLogWhereInput={...(p.actorUserId&&{actorUserId:p.actorUserId}),...(p.entityType&&{entityType:p.entityType}),...(p.action&&{action:p.action})};return Promise.all([prisma.auditLog.findMany({where,skip:p.skip,take:p.take,include:{actor:{select:{id:true,email:true,firstName:true,lastName:true}}},orderBy:{createdAt:"desc"}}),prisma.auditLog.count({where})]);};

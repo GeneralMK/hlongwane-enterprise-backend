@@ -1,0 +1,4 @@
+import type {Context} from "koa"; import * as service from "./service/index.js";
+export const getPaymentController=async(ctx:Context)=>{ctx.body={success:true,data:await service.getPayment(ctx.params.id)};}; export const getPaymentByReferenceController=async(ctx:Context)=>{ctx.body={success:true,data:await service.getPaymentByReference(ctx.params.reference)};};
+export const initializeCheckoutController=async(ctx:Context)=>{const u=ctx.state.user!;ctx.status=201;ctx.body={success:true,message:"Payment checkout initialized.",data:await service.initializeCheckout({userId:u.id,email:u.email,raw:ctx.request.body})};};
+export const requestRefundController=async(ctx:Context)=>{ctx.status=201;ctx.body={success:true,message:"Refund requested.",data:await service.requestRefund({paymentId:ctx.params.id,actorUserId:ctx.state.user!.id,raw:ctx.request.body})};};

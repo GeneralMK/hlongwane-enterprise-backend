@@ -1,0 +1,113 @@
+{
+  "executionRoleArn": "",
+  "containerDefinitions": [
+    {
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "portMappings": [
+        {
+          "hostPort": 1337,
+          "protocol": "tcp",
+          "containerPort": 1337
+        }
+      ],
+      "cpu": 0,
+      "environment": [
+        {
+          "name": "DATABASE_PROVIDER",
+          "value": ""
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": ""
+        },
+        {
+          "name": "NODE_ENV",
+          "value": ""
+        },
+        {
+          "name": "STAGE",
+          "value": ""
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "value": ""
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "value": ""
+        },
+        {
+          "name": "HOST",
+          "value": ""
+        },
+        {
+          "name": "JWT_SECRET",
+          "value": ""
+        },
+        {
+          "name": "GRAPHQL_SECRET",
+          "value": ""
+        },
+        {
+          "name": "SUPER_ADMIN_EMAIL",
+          "value": ""
+        },
+        {
+          "name": "SUPER_ADMIN_PASSWORD",
+          "value": ""
+        },
+        {
+          "name": "FRONTEND_URL",
+          "value": ""
+        },
+        {
+          "name": "AWS_STORAGE_BUCKET",
+          "value": ""
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": ""
+        },
+        {
+          "name": "AWS_SES_EMAIL_FROM",
+          "value": ""
+        },
+        {
+          "name": "AWS_SES_REPLY_TO",
+          "value": ""
+        },
+        {
+          "name": "PAYSTACK_SECRET",
+          "value": ""
+        },
+        {
+          "name": "PAYSTACK_PUBLIC",
+          "value": ""
+        }
+ 
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "image": "",
+      "essential": true,
+      "name": "web"
+    }
+  ],
+  "placementConstraints": [],
+  "taskRoleArn": "",
+  "family": "",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "volumes": []
+}

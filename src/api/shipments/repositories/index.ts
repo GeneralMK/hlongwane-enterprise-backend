@@ -1,0 +1,4 @@
+import prisma from "prisma"; import type {ShipmentStatus} from "@prisma/client";
+export const byId=(id:string)=>prisma.shipment.findUnique({where:{id},include:{order:true,events:{orderBy:{occurredAt:"asc"}}}});
+export const create=(data:{orderId:string;provider:string;serviceLevel?:string;trackingNumber?:string;trackingUrl?:string})=>prisma.shipment.create({data});
+export const update=(id:string,data:{status:ShipmentStatus;trackingNumber?:string;trackingUrl?:string;location?:string;description?:string})=>prisma.$transaction(async tx=>{const s=await tx.shipment.update({where:{id},data:{status:data.status,trackingNumber:data.trackingNumber,trackingUrl:data.trackingUrl,...(data.status==="DISPATCHED"&&{shippedAt:new Date()}),...(data.status==="DELIVERED"&&{deliveredAt:new Date()})}});await tx.shipmentEvent.create({data:{shipmentId:id,status:data.status,description:data.description,location:data.location,occurredAt:new Date()}});return s;});

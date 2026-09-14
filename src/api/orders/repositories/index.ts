@@ -1,0 +1,3 @@
+import prisma from "prisma"; import type {OrderStatus,Prisma} from "@prisma/client";
+export const list=(p:{userId?:string;status?:OrderStatus;skip:number;take:number})=>{const where:Prisma.OrderWhereInput={...(p.userId&&{userId:p.userId}),...(p.status&&{status:p.status})};return Promise.all([prisma.order.findMany({where,skip:p.skip,take:p.take,include:{items:true,payments:true,shipments:true},orderBy:{createdAt:"desc"}}),prisma.order.count({where})]);};
+export const byId=(id:string)=>prisma.order.findUnique({where:{id},include:{items:true,payments:{include:{events:true,refunds:true}},statusHistory:true,shipments:{include:{events:true}},returnRequests:{include:{items:true,evidence:true}}}});
