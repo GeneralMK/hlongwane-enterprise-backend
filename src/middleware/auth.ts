@@ -2,19 +2,63 @@ import type Koa from "koa";
 
 import { GraphQLError } from "graphql/error";
 
-import prisma from "prisma";
+import prisma from "../../prisma/index.js";
 
 import { supabaseAdmin } from "../lib/supabase.js";
 
 import type {
-  AuthenticatedUserClaims,
   AuthenticatedRole,
+  AuthenticatedUserClaims,
 } from "../types/context.js";
 
 import { logger } from "../utilities/index.js";
 
 /**
- * Extract a Bearer token from the Authorization header.
+ * ============================================================
+ * INTERNAL AUTH TYPES
+ * ============================================================
+ *
+ * These describe only the Prisma relation shape required by
+ * authentication.
+ *
+ * Keeping these types local prevents TypeScript from inferring
+ * callback parameters as `any` in environments where generated
+ * Prisma relation types are not resolved correctly.
+ */
+
+type AuthPermission = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+};
+
+type AuthRolePermission = {
+  permission: AuthPermission;
+};
+
+type AuthRoleRecord = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  permissions: AuthRolePermission[];
+};
+
+type AuthUserRoleAssignment = {
+  isActive: boolean;
+  revokedAt: Date | null;
+  role: AuthRoleRecord;
+};
+
+/**
+ * ============================================================
+ * BEARER TOKEN
+ * ============================================================
+ */
+
+/**
+ * Extract a Supabase access token from an Authorization header.
  *
  * Expected:
  *
@@ -50,8 +94,11 @@ export function getBearerToken(
 }
 
 /**
- * Creates a consistent authentication error.
+ * ============================================================
+ * AUTHENTICATION ERROR
+ * ============================================================
  */
+
 function authenticationError(
   message = "Authentication required",
 ): GraphQLError {
@@ -71,42 +118,211 @@ function authenticationError(
 }
 
 /**
- * Resolve the authenticated Supabase user
- * into the Hlongwane Enterprise Prisma user.
+ * ============================================================
+ * ROLE MAPPING
+ * ============================================================
+ */
+
+function resolveRoles(
+  assignments: AuthUserRoleAssignment[],
+): AuthenticatedRole[] {
+  return assignments
+    .filter(
+      (
+        assignment:
+          AuthUserRoleAssignment,
+      ) =>
+        assignment.isActive &&
+        assignment.revokedAt ===
+          null &&
+        assignment.role
+          .isActive,
+    )
+    .map(
+      (
+        assignment:
+          AuthUserRoleAssignment,
+      ): AuthenticatedRole => ({
+        id:
+          assignment.role.id,
+
+        code:
+          assignment.role.code,
+
+        name:
+          assignment.role.name,
+      }),
+    );
+}
+
+/**
+ * ============================================================
+ * PERMISSION MAPPING
+ * ============================================================
  *
- * Authentication source:
+ * Database permission codes use:
+ *
+ * products.view
+ * products.create
+ * products.update
+ * products.delete
+ *
+ * The application Action type uses:
+ *
+ * view:products
+ * create:products
+ * update:products
+ * delete:products
+ *
+ * Context permissions contain DATABASE permission codes.
+ */
+
+function resolvePermissions(
+  assignments: AuthUserRoleAssignment[],
+): string[] {
+  const permissionCodes =
+    assignments
+      .filter(
+        (
+          assignment:
+            AuthUserRoleAssignment,
+        ) =>
+          assignment.isActive &&
+          assignment.revokedAt ===
+            null &&
+          assignment.role
+            .isActive,
+      )
+      .flatMap(
+        (
+          assignment:
+            AuthUserRoleAssignment,
+        ): string[] =>
+          assignment.role
+            .permissions
+            .filter(
+              (
+                rolePermission:
+                  AuthRolePermission,
+              ) =>
+                rolePermission
+                  .permission
+                  .isActive,
+            )
+            .map(
+              (
+                rolePermission:
+                  AuthRolePermission,
+              ): string =>
+                rolePermission
+                  .permission
+                  .code,
+            ),
+      );
+
+  /**
+   * Explicit Set<string> is important.
+   *
+   * Without it some TypeScript/Prisma combinations can infer
+   * Array.from(new Set(...)) as unknown[].
+   */
+  return Array.from(
+    new Set<string>(
+      permissionCodes,
+    ),
+  );
+}
+
+/**
+ * ============================================================
+ * ADMIN FLAGS
+ * ============================================================
+ */
+
+function resolveIsSuperAdmin(
+  roles: AuthenticatedRole[],
+): boolean {
+  return roles.some(
+    (
+      role:
+        AuthenticatedRole,
+    ) =>
+      role.code ===
+      "SUPER_ADMIN",
+  );
+}
+
+/**
+ * Convenience flag only.
+ *
+ * Authorization must still be performed through RBAC
+ * permissions rather than this boolean.
+ */
+function resolveIsAdmin(
+  roles: AuthenticatedRole[],
+  isSuperAdmin: boolean,
+): boolean {
+  if (isSuperAdmin) {
+    return true;
+  }
+
+  return roles.some(
+    (
+      role:
+        AuthenticatedRole,
+    ) =>
+      role.code ===
+      "ADMIN",
+  );
+}
+
+/**
+ * ============================================================
+ * AUTHENTICATE SUPABASE ACCESS TOKEN
+ * ============================================================
+ *
+ * Authentication:
  *
  * Supabase Auth
  *
- * Authorization source:
+ * Authorization:
  *
  * User
- * -> UserRole
- * -> Role
- * -> RolePermission
- * -> Permission
+ *   ↓
+ * UserRole
+ *   ↓
+ * Role
+ *   ↓
+ * RolePermission
+ *   ↓
+ * Permission
  */
+
 export async function authenticateAccessToken(
   token: string,
 ): Promise<AuthenticatedUserClaims> {
-  if (!token?.trim()) {
+  const normalizedToken =
+    token?.trim();
+
+  if (!normalizedToken) {
     throw authenticationError(
       "Access token is required",
     );
   }
 
   /**
-   * Validate the token with Supabase.
+   * Always validate the token against Supabase.
    *
-   * Do not decode the JWT manually and
-   * trust its contents.
+   * Do not simply decode a JWT and trust its claims.
    */
   const {
     data,
     error,
   } =
     await supabaseAdmin.auth
-      .getUser(token);
+      .getUser(
+        normalizedToken,
+      );
 
   if (
     error ||
@@ -130,8 +346,7 @@ export async function authenticateAccessToken(
     data.user;
 
   /**
-   * authUserId contains the Supabase
-   * Auth UUID.
+   * authUserId is the Supabase Auth UUID.
    */
   const user =
     await prisma.user.findUnique({
@@ -141,12 +356,16 @@ export async function authenticateAccessToken(
       },
 
       include: {
-        adminProfile: true,
+        adminProfile:
+          true,
 
         userRoles: {
           where: {
-            isActive: true,
-            revokedAt: null,
+            isActive:
+              true,
+
+            revokedAt:
+              null,
           },
 
           include: {
@@ -171,6 +390,12 @@ export async function authenticateAccessToken(
         },
       },
     });
+
+  /**
+   * ==========================================================
+   * USER VALIDATION
+   * ==========================================================
+   */
 
   if (!user) {
     logger(
@@ -208,101 +433,72 @@ export async function authenticateAccessToken(
   }
 
   /**
-   * Only active roles should be
-   * exposed through the context.
+   * ==========================================================
+   * NORMALIZE PRISMA RBAC RELATIONS
+   * ==========================================================
+   *
+   * Explicit structural typing here prevents Vercel/TypeScript
+   * from assigning `any` to callback parameters.
    */
-  const roles: AuthenticatedRole[] =
-    user.userRoles
-      .filter(
-        (assignment) =>
-          assignment.role
-            .isActive,
-      )
-      .map(
-        (assignment) => ({
-          id:
-            assignment.role.id,
 
-          code:
-            assignment.role.code,
-
-          name:
-            assignment.role.name,
-        }),
-      );
+  const userRoleAssignments =
+    user.userRoles as AuthUserRoleAssignment[];
 
   /**
-   * Flatten RolePermission records
-   * into distinct permission codes.
-   *
-   * Example:
-   *
-   * create:products
-   * update:products
-   * orders.view
-   * payments.refund
+   * ==========================================================
+   * RESOLVE ROLES
+   * ==========================================================
    */
-  const permissions =
-    Array.from(
-      new Set(
-        user.userRoles
-          .filter(
-            (assignment) =>
-              assignment.role
-                .isActive,
-          )
-          .flatMap(
-            (assignment) =>
-              assignment.role
-                .permissions
-                .filter(
-                  (
-                    rolePermission,
-                  ) =>
-                    rolePermission
-                      .permission
-                      .isActive,
-                )
-                .map(
-                  (
-                    rolePermission,
-                  ) =>
-                    rolePermission
-                      .permission
-                      .code,
-                ),
-          ),
-      ),
+
+  const roles:
+    AuthenticatedRole[] =
+    resolveRoles(
+      userRoleAssignments,
     );
+
+  /**
+   * ==========================================================
+   * RESOLVE PERMISSIONS
+   * ==========================================================
+   */
+
+  const permissions:
+    string[] =
+    resolvePermissions(
+      userRoleAssignments,
+    );
+
+  /**
+   * ==========================================================
+   * ADMIN FLAGS
+   * ==========================================================
+   */
 
   const isSuperAdmin =
-    roles.some(
-      (role) =>
-        role.code ===
-        "SUPER_ADMIN",
+    resolveIsSuperAdmin(
+      roles,
     );
 
-  /**
-   * Any non-customer operational role
-   * is considered an administrative user.
-   *
-   * This flag is convenience only.
-   * Authorization must still use permissions.
-   */
   const isAdmin =
-    isSuperAdmin ||
-    roles.some(
-      (role) =>
-        role.code !==
-        "CUSTOMER",
+    resolveIsAdmin(
+      roles,
+      isSuperAdmin,
     );
 
   /**
-   * Update last login opportunistically.
+   * ==========================================================
+   * LAST LOGIN
+   * ==========================================================
    *
-   * Authentication should not fail just
-   * because this audit-style update fails.
+   * This is audit information.
+   *
+   * Authentication itself must not fail because updating
+   * lastLoginAt failed.
    */
+
+  const loginTimestamp =
+    new Date();
+
   try {
     await prisma.user.update({
       where: {
@@ -312,7 +508,7 @@ export async function authenticateAccessToken(
 
       data: {
         lastLoginAt:
-          new Date(),
+          loginTimestamp,
       },
     });
 
@@ -329,11 +525,13 @@ export async function authenticateAccessToken(
 
           data: {
             lastLoginAt:
-              new Date(),
+              loginTimestamp,
           },
         });
     }
-  } catch (error) {
+  } catch (
+    error
+  ) {
     logger(
       "AUTH_LAST_LOGIN_UPDATE_FAILED",
       {
@@ -341,12 +539,21 @@ export async function authenticateAccessToken(
           user.id,
 
         message:
-          error instanceof Error
+          error instanceof
+          Error
             ? error.message
-            : String(error),
+            : String(
+                error,
+              ),
       },
     );
   }
+
+  /**
+   * ==========================================================
+   * CONTEXT USER
+   * ==========================================================
+   */
 
   const authenticatedUser:
     AuthenticatedUserClaims = {
@@ -394,7 +601,10 @@ export async function authenticateAccessToken(
         authenticatedUser
           .roles
           .map(
-            (role) =>
+            (
+              role:
+                AuthenticatedRole,
+            ) =>
               role.code,
           ),
 
@@ -402,6 +612,14 @@ export async function authenticateAccessToken(
         authenticatedUser
           .permissions
           .length,
+
+      isAdmin:
+        authenticatedUser
+          .isAdmin,
+
+      isSuperAdmin:
+        authenticatedUser
+          .isSuperAdmin,
     },
   );
 
@@ -409,19 +627,27 @@ export async function authenticateAccessToken(
 }
 
 /**
- * Authenticate a Koa request.
+ * ============================================================
+ * OPTIONAL GRAPHQL AUTHENTICATION
+ * ============================================================
  *
- * Returns null when no token exists.
+ * GraphQL supports both public and protected queries.
  *
- * An invalid token also resolves to null
- * so GraphQL public queries can continue.
+ * Therefore:
  *
- * Protected resolvers will reject because
- * context.user will be null.
+ * Missing token -> null
+ * Invalid token -> null
+ *
+ * Protected resolvers still reject requests when context.user
+ * is null.
  */
+
 export async function authenticateRequest(
   ctx: Koa.Context,
-): Promise<AuthenticatedUserClaims | null> {
+): Promise<
+  AuthenticatedUserClaims |
+  null
+> {
   const token =
     getBearerToken(
       ctx.headers
@@ -436,7 +662,9 @@ export async function authenticateRequest(
     return await authenticateAccessToken(
       token,
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     logger(
       "AUTH_REQUEST_FAILED",
       {
@@ -447,9 +675,12 @@ export async function authenticateRequest(
           ctx.path,
 
         message:
-          error instanceof Error
+          error instanceof
+          Error
             ? error.message
-            : String(error),
+            : String(
+                error,
+              ),
       },
     );
 
@@ -458,10 +689,11 @@ export async function authenticateRequest(
 }
 
 /**
- * Strict REST authentication middleware.
+ * ============================================================
+ * REQUIRED REST AUTHENTICATION
+ * ============================================================
  *
- * Use this on REST endpoints that require
- * an authenticated user.
+ * Use this middleware for protected REST endpoints.
  *
  * Example:
  *
@@ -471,6 +703,7 @@ export async function authenticateRequest(
  *   meController,
  * );
  */
+
 export async function requireAuthenticatedUser(
   ctx: Koa.Context,
   next: Koa.Next,
@@ -482,9 +715,13 @@ export async function requireAuthenticatedUser(
     );
 
   if (!token) {
-    ctx.status = 401;
+    ctx.status =
+      401;
 
     ctx.body = {
+      success:
+        false,
+
       error: {
         code:
           "UNAUTHENTICATED",
@@ -510,7 +747,9 @@ export async function requireAuthenticatedUser(
       token;
 
     await next();
-  } catch (error) {
+  } catch (
+    error
+  ) {
     logger(
       "REST_AUTH_FAILED",
       {
@@ -521,15 +760,22 @@ export async function requireAuthenticatedUser(
           ctx.path,
 
         message:
-          error instanceof Error
+          error instanceof
+          Error
             ? error.message
-            : String(error),
+            : String(
+                error,
+              ),
       },
     );
 
-    ctx.status = 401;
+    ctx.status =
+      401;
 
     ctx.body = {
+      success:
+        false,
+
       error: {
         code:
           "UNAUTHENTICATED",
@@ -542,11 +788,21 @@ export async function requireAuthenticatedUser(
 }
 
 /**
- * Optional REST authentication.
+ * ============================================================
+ * OPTIONAL REST AUTHENTICATION
+ * ============================================================
  *
- * Useful for endpoints that work for both
- * authenticated and anonymous customers.
+ * Useful for endpoints that support:
+ *
+ * - anonymous visitors
+ * - authenticated customers
+ *
+ * Example:
+ *
+ * public catalogue endpoints that can provide personalised
+ * information when a valid user exists.
  */
+
 export async function optionalAuthenticatedUser(
   ctx: Koa.Context,
   next: Koa.Next,
@@ -561,21 +817,51 @@ export async function optionalAuthenticatedUser(
     ctx.state.user =
       null;
 
+    ctx.state.token =
+      null;
+
     await next();
 
     return;
   }
 
   try {
-    ctx.state.user =
+    const user =
       await authenticateAccessToken(
         token,
       );
 
+    ctx.state.user =
+      user;
+
     ctx.state.token =
       token;
-  } catch {
+  } catch (
+    error
+  ) {
+    logger(
+      "OPTIONAL_REST_AUTH_FAILED",
+      {
+        method:
+          ctx.method,
+
+        path:
+          ctx.path,
+
+        message:
+          error instanceof
+          Error
+            ? error.message
+            : String(
+                error,
+              ),
+      },
+    );
+
     ctx.state.user =
+      null;
+
+    ctx.state.token =
       null;
   }
 
@@ -583,15 +869,25 @@ export async function optionalAuthenticatedUser(
 }
 
 /**
- * Compatibility helper for your GraphQL
- * context creation.
+ * ============================================================
+ * GRAPHQL COMPATIBILITY HELPER
+ * ============================================================
  *
- * This replaces the old JWT-based
- * AuthMiddleware implementation.
+ * This exists for existing code that still calls:
+ *
+ * AuthMiddleware(ctx)
+ *
+ * It does NOT implement the previous local JWT architecture.
+ *
+ * Authentication continues through Supabase.
  */
+
 export async function AuthMiddleware(
   ctx: Koa.Context,
-): Promise<AuthenticatedUserClaims | null> {
+): Promise<
+  AuthenticatedUserClaims |
+  null
+> {
   return authenticateRequest(
     ctx,
   );
